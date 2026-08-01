@@ -44,9 +44,18 @@ wird später neu angefangen. Sofort auslösen: Tray-Icon → *Jetzt begrüßen*.
 | Klick auf eine Katze | Streicheln — sie setzt sich, Augen zu, Herzchen |
 | Doppelklick | Zoomies — sie flitzt wie verrückt hin und her |
 | Ziehen | Sie hängt zappelnd am Zeiger; loslassen → sie fällt und landet federnd |
-| Rechtsklick auf eine Katze | Menü **für genau diese Katze**: Maus jagen · Schlafen · Zoomies · Fell (5 Farben) · Freundin holen/wegschicken · Beenden |
+| **Aus großer Höhe loslassen** | Ein rosa **Fallschirm** öffnet sich und sie schwebt sanft pendelnd zu Boden |
+| Rechtsklick auf eine Katze | Menü **für genau diese Katze**: Maus jagen · Schlafen · Zoomies · Fell (5 Farben) · Freundin holen/wegschicken · Babykatzen · Beenden |
 | Tray-Icon (Doppelklick) | Wollknäuel werfen |
-| Tray-Icon (Rechtsklick) | Freundin · Maus jagen (beide) · Wollknäuel · Schmetterling · Jetzt begrüßen · Pause · Monitor wechseln · Größe · Beenden |
+| Tray-Icon (Rechtsklick) | Freundin · Babykatzen · Maus jagen (beide) · Wollknäuel · Schmetterling · Jetzt begrüßen · Pause · Monitor wechseln · Größe · Beenden |
+
+**Babykatzen:** Über das Tray- oder Rechtsklick-Menü kommen **Krümel und Fussel** dazu —
+zwei winzige Kätzchen mit noch größeren Köpfen und zufälligem Fell. Sie tun vor allem
+eines: **die Großen nerven.** Sie rennen zu einer hin und patschen nach ihr, bis die
+einen Katzenbuckel macht, genervt wegrennt, sich schüttelt oder Protest maunzt — auch
+aus dem Schlaf werden die Großen so geweckt. Dazwischen: Zoomies, Anschleichen,
+Wollknäuel-Klauen und kurze Nickerchen. Streicheln, Werfen und Ziehen (samt Fallschirm)
+funktioniert bei ihnen genauso. Wegschicken jederzeit über dasselbe Menü.
 
 **Wollknäuel:** Taucht von allein auf (erstmals nach ~45 s, dann alle 2–5 min) oder per
 Menü. Die Katze, die näher dran ist, pirscht sich heran und schlägt mit der Pfote danach;
@@ -112,8 +121,9 @@ powershell -STA -File katze.ps1 -Fur grau -Size 1.4 -OhneFreundin
 ```
 
 * `-Fur` — Fell von Minka: `orange` (Standard), `grau`, `schwarz`, `weiss`, `siam`
-* `-Size` — 0.7 klein … 2.0 riesig (Luna ist immer ~6 % kleiner)
+* `-Size` — 0.6 klein … 1.6 riesig (Standard 0.8; Luna ist immer ~6 % kleiner)
 * `-OhneFreundin` — nur Minka
+* `-MitBabykatzen` — Krümel und Fussel sind von Anfang an dabei
 * `-Pose sit` — hält eine Pose fest (zum Ansehen)
 * `-Sheet C:\pfad` — rendert alle 27 Posen als PNG (Entwicklungshilfe)
 * `-Fast` — staffelt zum Testen: Begrüßung nach 4 s, Knäuel nach 28 s, Falter nach 48 s
