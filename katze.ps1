@@ -89,7 +89,7 @@ $G = @{
     kits = New-Object System.Collections.ArrayList   # Babykatzen (auf Bedarf)
     toy = $null; fly = $null      # Wollknaeuel, Schmetterling
     toyT = 45.0; flyT = 85.0
-    soc = @{ mode = 'none'; t = 0.0; cool = 30.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
+    soc = @{ mode = 'none'; t = 0.0; cool = 60.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
     hkT = 1.0                     # Zaehler fuer die Wartungsroutine
     hidden = $false               # versteckt, weil eine Vollbild-App laeuft
     away = $false                 # niemand am Rechner -> Katzen doesen
@@ -656,11 +656,12 @@ $POSES = @{
     walk   = NewPose @{ tailA=42; tailC=0.55 }
     run    = NewPose @{ brot=-3; bsx=1.08; tailA=24; tailC=0.4; ear=-9; hdy=1 }
     sit    = $SIT
-    # Loaf: flach und breit, Pfoetchen eingezogen, Kopf abgelegt
-    sleep  = NewPose @{ bsx=1.14; bsy=0.80; pFNy=-11; pFFy=-10; pBNy=-11; pBFy=-10;
+    # Loaf: flach und breit, Pfoetchen ganz eingezogen, Bauch auf dem Boden
+    # (bdy = (1 - bsy) * 17: die Bauchlinie 165 sinkt bis zur Bodenlinie 182)
+    sleep  = NewPose @{ bdy=13.5; bsx=1.14; bsy=0.80; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
                         hdx=2; hdy=12; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
     # zusammengerollt: kompakt, alle Pfoetchen weg, Kopf tief
-    curl   = NewPose @{ bsx=0.96; bsy=0.90; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
+    curl   = NewPose @{ bdy=15; bsx=0.96; bsy=0.90; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
                         hdx=-8; hdy=10; hrot=16; tailA=-30; tailC=1.5; eye=0.05; ear=-10 }
     groom  = PoseFrom $SIT @{ pFNx=12; pFNy=-12; hdx=-8; hdy=-8; hrot=40; tailA=10; tailC=0.9; eye=0.25 }
     stretch= NewPose @{ bsx=1.18; bsy=0.88; pFNx=8; pFFx=6; pBNx=-6; pBFx=-5;
@@ -683,7 +684,7 @@ $POSES = @{
     watch  = PoseFrom $SIT @{ hdx=-7; hdy=-18; hrot=10; tailA=30; tailC=0.8; ear=3 }
     scratch= PoseFrom $SIT @{ pBNx=14; pBNy=-14; hdx=-12; hdy=-10; hrot=26; tailA=2; eye=0.35; ear=8 }
     # lang hingestreckt auf der Seite luemmeln (ersetzt das Waelzen)
-    roll   = NewPose @{ bsx=1.18; bsy=0.78; pFNx=6; pFNy=-10; pFFx=4; pFFy=-9; pBNx=-6; pBNy=-10; pBFx=-4; pBFy=-9;
+    roll   = NewPose @{ bdy=13.5; bsx=1.18; bsy=0.78; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17; pBNx=-6; pBNy=-17; pBFx=-4; pBFy=-17;
                         hdx=-4; hdy=10; hrot=-18; eye=0.5; mouth=0.15; ear=-6; tailA=30; tailC=0.6 }
     # aufrichten am Bildschirmrand: hoch und schmal, Kopf ganz oben
     edge   = NewPose @{ bsx=0.9; bsy=1.25; brot=-5; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17;
@@ -1054,8 +1055,8 @@ function Next-KitState($c) {
         'yawn'    { Set-State $c 'stretch' 1.7; return }
         'stretch' { Set-State $c 'walk' (Rnd 1.5 3.5); return }
     }
-    if ($G.away -and (Rnd 0 1) -lt 0.85) {
-        if ((Rnd 0 1) -lt 0.5) { Set-State $c 'sleep' (Rnd 20 60) } else { Set-State $c 'curl' (Rnd 20 60) }
+    if ($G.away) {
+        if ((Rnd 0 1) -lt 0.6) { Set-State $c 'sleep' 9999 } else { Set-State $c 'curl' 9999 }
         return
     }
     if ($G.toy -and $G.toy.life -gt 4 -and (Rnd 0 1) -lt 0.5) { Set-State $c 'toychase' (Rnd 3 7); return }
@@ -1063,14 +1064,14 @@ function Next-KitState($c) {
     if ($r -lt 0.42 -and $G.cats.Count -gt 0) {
         # such dir eine Grosse aus und geh ihr auf die Nerven
         $c.target = $G.cats[(Get-Random -Minimum 0 -Maximum $G.cats.Count)]
-        Set-State $c 'pester' (Rnd 5 10)
+        Set-State $c 'pester' (Rnd 8 16)
     }
-    elseif ($r -lt 0.55) { Set-State $c 'run'     (Rnd 1 2.2) }
+    elseif ($r -lt 0.55) { Set-State $c 'run'     (Rnd 2 3.5) }
     elseif ($r -lt 0.65) { Set-State $c 'crouch'  (Rnd 0.6 1.1) }
-    elseif ($r -lt 0.75) { Set-State $c 'walk'    (Rnd 1.5 3.5) }
+    elseif ($r -lt 0.75) { Set-State $c 'walk'    (Rnd 3 7) }
     elseif ($r -lt 0.82) { Set-State $c 'meow'    (Rnd 1.4 2.4) }
-    elseif ($r -lt 0.89) { Set-State $c 'roll'    (Rnd 2 3.5) }
-    elseif ($r -lt 0.95) { Set-State $c 'sit'     (Rnd 1.5 3) }
+    elseif ($r -lt 0.89) { Set-State $c 'roll'    (Rnd 4 8) }
+    elseif ($r -lt 0.95) { Set-State $c 'sit'     (Rnd 3 6) }
     else                 { Set-State $c 'scratch' (Rnd 1.8 3) }
 }
 
@@ -1086,20 +1087,20 @@ function Next-State($c) {
             $c.vx = 250 * $c.facing * $c.pxs
             return
         }
-        'sleep'   { if ((Rnd 0 1) -lt 0.55) { Set-State $c 'curl' (Rnd 8 22) } else { Set-State $c 'shake' 1.1 }; return }
+        'sleep'   { if ((Rnd 0 1) -lt 0.55) { Set-State $c 'curl' (Rnd 20 50) } else { Set-State $c 'shake' 1.1 }; return }
         'curl'    { if ((Rnd 0 1) -lt 0.5) { Set-State $c 'shake' 1.1 } else { Set-State $c 'yawn' 1.6 }; return }
         'shake'   { Set-State $c 'yawn' 1.6; return }
         'yawn'    { Set-State $c 'stretch' 1.7; return }
         'stretch' { Set-State $c 'arch' (Rnd 1.6 2.6); return }
-        'arch'    { Set-State $c 'walk' (Rnd 3 7); return }
-        'scratch' { Set-State $c 'sit' (Rnd 1.5 3.5); return }
-        'roll'    { Set-State $c 'sit' (Rnd 1.5 3); return }
-        'meow'    { Set-State $c 'sit' (Rnd 1.5 3.5); return }
-        'wave'    { Set-State $c 'sit' (Rnd 1.5 3); return }
-        'beg'     { Set-State $c 'sit' (Rnd 1.5 3); return }
-        'dig'     { Set-State $c 'sniff' (Rnd 2.5 5); return }
-        'sniff'   { Set-State $c 'walk' (Rnd 2 5); return }
-        'edge'    { $c.facing = -$c.facing; Set-State $c 'walk' (Rnd 3 7); return }
+        'arch'    { Set-State $c 'walk' (Rnd 6 14); return }
+        'scratch' { Set-State $c 'sit' (Rnd 4 8); return }
+        'roll'    { Set-State $c 'sit' (Rnd 4 8); return }
+        'meow'    { Set-State $c 'sit' (Rnd 4 8); return }
+        'wave'    { Set-State $c 'sit' (Rnd 4 8); return }
+        'beg'     { Set-State $c 'sit' (Rnd 4 8); return }
+        'dig'     { Set-State $c 'sniff' (Rnd 4 8); return }
+        'sniff'   { Set-State $c 'walk' (Rnd 5 10); return }
+        'edge'    { $c.facing = -$c.facing; Set-State $c 'walk' (Rnd 6 14); return }
         'bat'     {
             if ($G.toy) { Set-State $c 'toychase' (Rnd 3 8) } else { Set-State $c 'sit' (Rnd 2 4) }
             return
@@ -1112,9 +1113,10 @@ function Next-State($c) {
         }
     }
 
-    # Niemand am Rechner: dann doesen sie lieber, statt Aufmerksamkeit zu wollen
-    if ($G.away -and (Rnd 0 1) -lt 0.82) {
-        if ((Rnd 0 1) -lt 0.5) { Set-State $c 'sleep' (Rnd 20 60) } else { Set-State $c 'curl' (Rnd 20 60) }
+    # Niemand am Rechner: einschlafen und schlafen bleiben, bis jemand zurueckkommt
+    # (Update-Housekeeping weckt sie dann mit 'shake')
+    if ($G.away) {
+        if ((Rnd 0 1) -lt 0.6) { Set-State $c 'sleep' 9999 } else { Set-State $c 'curl' 9999 }
         return
     }
 
@@ -1126,39 +1128,39 @@ function Next-State($c) {
 
     # am Bildschirmrand richtet sie sich manchmal auf und kratzt daran
     $wa = $c.screen.WorkingArea
-    if (($c.x -lt ($wa.Left + 80 * $c.pxs)) -and (Rnd 0 1) -lt 0.4) {
+    if (($c.x -lt ($wa.Left + 80 * $c.pxs)) -and (Rnd 0 1) -lt 0.25) {
         $c.facing = -1.0; Set-State $c 'edge' (Rnd 2.5 5); return
     }
-    if (($c.x -gt ($wa.Right - 80 * $c.pxs)) -and (Rnd 0 1) -lt 0.4) {
+    if (($c.x -gt ($wa.Right - 80 * $c.pxs)) -and (Rnd 0 1) -lt 0.25) {
         $c.facing = 1.0; Set-State $c 'edge' (Rnd 2.5 5); return
     }
 
     # winkt oder bettelt, wenn der Mauszeiger in der Naehe ist
     $cp = [System.Windows.Forms.Cursor]::Position
-    if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.30) {
+    if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.15) {
         if ($cp.X -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
         if ((Rnd 0 1) -lt 0.5) { Set-State $c 'wave' (Rnd 2.2 4) } else { Set-State $c 'beg' (Rnd 2.2 4) }
         return
     }
 
     $r = Get-Random -Minimum 0.0 -Maximum 1.0
-    if     ($r -lt 0.17) { Set-State $c 'walk'    (Rnd 2.5 8) }
-    elseif ($r -lt 0.25) { Set-State $c 'sit'     (Rnd 2.5 6) }
-    elseif ($r -lt 0.32) { Set-State $c 'groom'   (Rnd 3.5 6) }
-    elseif ($r -lt 0.37) { Set-State $c 'scratch' (Rnd 1.8 3.4) }
-    elseif ($r -lt 0.42) { Set-State $c 'idle'    (Rnd 1.8 4) }
-    elseif ($r -lt 0.47) { Set-State $c 'run'     (Rnd 1.2 2.6) }
-    elseif ($r -lt 0.54) { Set-State $c 'crouch'  (Rnd 0.7 1.4) }
-    elseif ($r -lt 0.58) { Set-State $c 'roll'    (Rnd 2.2 4.5) }
-    elseif ($r -lt 0.62) { Set-State $c 'meow'    (Rnd 1.4 2.6) }
-    elseif ($r -lt 0.66) { Set-State $c 'stretch' 1.7 }
-    elseif ($r -lt 0.71) { Set-State $c 'yawn'    1.6 }
-    elseif ($r -lt 0.76) { Set-State $c 'wave'    (Rnd 2.2 4) }
-    elseif ($r -lt 0.82) { Set-State $c 'sniff'   (Rnd 3 6) }
-    elseif ($r -lt 0.86) { Set-State $c 'dig'     (Rnd 2 3.6) }
-    elseif ($r -lt 0.89) { Set-State $c 'arch'    (Rnd 1.6 2.6) }
-    elseif ($r -lt 0.92) { Set-State $c 'beg'     (Rnd 2 3.5) }
-    else                 { Set-State $c 'sleep'   (Rnd 8 22) }
+    if     ($r -lt 0.17) { Set-State $c 'walk'    (Rnd 6 16) }
+    elseif ($r -lt 0.25) { Set-State $c 'sit'     (Rnd 8 20) }
+    elseif ($r -lt 0.32) { Set-State $c 'groom'   (Rnd 7 12) }
+    elseif ($r -lt 0.37) { Set-State $c 'scratch' (Rnd 2.5 4.5) }
+    elseif ($r -lt 0.42) { Set-State $c 'idle'    (Rnd 5 12) }
+    elseif ($r -lt 0.47) { Set-State $c 'run'     (Rnd 1.5 3) }
+    elseif ($r -lt 0.54) { Set-State $c 'crouch'  (Rnd 0.9 1.6) }
+    elseif ($r -lt 0.58) { Set-State $c 'roll'    (Rnd 5 10) }
+    elseif ($r -lt 0.62) { Set-State $c 'meow'    (Rnd 1.6 3) }
+    elseif ($r -lt 0.66) { Set-State $c 'stretch' 2.2 }
+    elseif ($r -lt 0.71) { Set-State $c 'yawn'    2.0 }
+    elseif ($r -lt 0.76) { Set-State $c 'wave'    (Rnd 3 5) }
+    elseif ($r -lt 0.82) { Set-State $c 'sniff'   (Rnd 5 10) }
+    elseif ($r -lt 0.86) { Set-State $c 'dig'     (Rnd 3 5) }
+    elseif ($r -lt 0.89) { Set-State $c 'arch'    (Rnd 2 3.5) }
+    elseif ($r -lt 0.92) { Set-State $c 'beg'     (Rnd 3 5) }
+    else                 { Set-State $c 'sleep'   (Rnd 30 90) }
 }
 
 function Set-Chute($c, [bool]$on) {
@@ -1537,7 +1539,7 @@ function Abort-Social {
             else { Set-State $c 'sit' (Rnd 1.5 3) }
         }
     }
-    $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 40 90
+    $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 90 180
 }
 
 function End-Social {
@@ -1546,7 +1548,7 @@ function End-Social {
         $c.locked = $false
         Set-State $c 'sit' (Rnd 2 4)
     }
-    $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 45 110
+    $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 100 220
 }
 
 function Update-Social($dt) {
@@ -1570,7 +1572,7 @@ function Update-Social($dt) {
     switch ($s.mode) {
         'none' {
             $s.cool -= $dt
-            if ($s.cool -le 0 -and -not (Cat-Busy $a) -and -not (Cat-Busy $b) -and
+            if ($s.cool -le 0 -and -not $G.away -and -not (Cat-Busy $a) -and -not (Cat-Busy $b) -and
                 $a.screen.DeviceName -eq $b.screen.DeviceName -and
                 [Math]::Abs($a.x - $b.x) -lt 2400 * $a.pxs) {
                 # Treffpunkt in der Mitte, jede geht auf ihre Seite
@@ -1613,7 +1615,7 @@ function Update-Social($dt) {
                     $s.mode = 'tag'; $s.t = 0.0
                 } elseif ($pick -lt 0.62) {
                     # zusammen sitzen
-                    $s.dur = Rnd 8 18
+                    $s.dur = Rnd 15 35
                     foreach ($c in @($a, $b)) { Set-State $c 'sit' 99 }
                     $s.mode = 'snuggle'; $s.t = 0.0; $s.heartT = Rnd 2 5
                 } elseif ($pick -lt 0.81) {
@@ -1623,7 +1625,7 @@ function Update-Social($dt) {
                     $s.mode = 'rub'; $s.t = 0.0; $s.heartT = 0.8
                 } else {
                     # zusammen ein Nickerchen, Nase an Nase
-                    $s.dur = Rnd 20 45
+                    $s.dur = Rnd 40 90
                     Set-State $a 'sleep' 999
                     Set-State $b 'curl' 999
                     $s.mode = 'nap'; $s.t = 0.0
@@ -1645,7 +1647,7 @@ function Update-Social($dt) {
                 foreach ($c in @($a, $b)) { $c.locked = $false }
                 Set-State $a 'sit' (Rnd 2 4)
                 Set-State $b 'sit' (Rnd 2 4)
-                $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 50 120
+                $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 100 220
             }
         }
         'rub' {
@@ -1658,7 +1660,7 @@ function Update-Social($dt) {
             }
             if ($s.t -gt $s.dur) {
                 if ((Rnd 0 1) -lt 0.5) {
-                    $s.dur = Rnd 8 16
+                    $s.dur = Rnd 15 35
                     foreach ($c in @($a, $b)) { Set-State $c 'sit' 99 }
                     $s.mode = 'snuggle'; $s.t = 0.0; $s.heartT = Rnd 2 5
                 } else { End-Social }
@@ -1669,7 +1671,7 @@ function Update-Social($dt) {
                 foreach ($c in @($a, $b)) { $c.locked = $false }
                 Set-State $a 'shake' 1.1
                 Set-State $b 'yawn' 1.6
-                $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 60 140
+                $s.mode = 'none'; $s.t = 0.0; $s.cool = Rnd 120 240
             }
         }
         'snuggle' {
@@ -2141,7 +2143,7 @@ function Update-Housekeeping($dt) {
     # 4) Niemand am Rechner? Dann doesen sie, statt Aufmerksamkeit zu wollen.
     $idle = [CatNative]::IdleSeconds()
     $wasAway = $G.away
-    $G.away = ($idle -gt 300)
+    $G.away = ($idle -gt 240)
     if ($wasAway -and -not $G.away) {
         # du bist zurueck - sie wachen auf und recken sich
         if ($G.soc.mode -eq 'nap') { Abort-Social }

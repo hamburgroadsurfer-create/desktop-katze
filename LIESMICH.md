@@ -20,7 +20,7 @@ Ohne sie starten: `katze.ps1 -OhneFreundin`.
 
 ## Was die beiden miteinander machen
 
-Alle 1–2 Minuten fängt eine Begegnung an — der Ablauf:
+Alle 2–4 Minuten fängt eine Begegnung an — der Ablauf:
 
 1. **Hingehen** — beide laufen auf einen Treffpunkt in der Mitte zwischen ihnen zu.
 2. **Begrüßen** — sie stehen sich gegenüber, Hals vorgestreckt, Ohren nach vorn,
@@ -92,9 +92,10 @@ Weiterlaufen). Beide haben eigene Zeitgeber, atmen also nicht im Gleichschritt.
   (Spiel, Video, Präsentation), verstecken sich beide automatisch und die Animation setzt
   komplett aus — dann kosten sie praktisch keine CPU. Danach kommen sie von selbst zurück.
   Läuft das Vollbild auf einem *anderen* Monitor, bleiben sie sichtbar.
-* **Wenn du weg bist, dösen sie.** Nach 5 Minuten ohne Maus- oder Tastatureingabe legen
-  sie sich schlafen und es taucht kein neues Spielzeug mehr auf. Sobald du zurück bist,
-  schütteln sie sich und machen weiter.
+* **Wenn du weg bist, schlafen sie.** Nach 4 Minuten ohne Maus- oder Tastatureingabe
+  beenden sie ihre aktuelle Beschäftigung, legen sich hin und **schlafen durch** — kein
+  Spielzeug, keine Begegnungen, kein Herumlaufen. Sobald du zurück bist, schütteln sie
+  sich und machen weiter.
 * **Klickdurchlässig:** Jedes Katzenfenster fängt Mausklicks *nur* dort ab, wo tatsächlich
   Katze gezeichnet ist (pixelgenauer WPF-Hit-Test + `WS_EX_TRANSPARENT`).
 * Kein Alt-Tab-Eintrag, keine Taskleiste, klaut niemals den Fokus.
