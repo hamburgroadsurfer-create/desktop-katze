@@ -1,7 +1,7 @@
 # Desktop-Katzen 🐈‍⬛ 🐈
 
 **Minka** (zart lavendel-weiß, mit rosa Schleife am Ohr) und ihre Freundin **Luna**
-(dunkles Schiefergrau mit rotem Halsband und Glöckchen) leben am
+(dunkles Schiefergrau, ganz schlicht ohne Accessoire) leben am
 unteren Bildschirmrand. Sie laufen herum, putzen
 sich, gähnen, schlafen, spielen mit einem Wollknäuel, beobachten Schmetterlinge, jagen
 die Maus — **und sie beschäftigen sich miteinander.** Reines PowerShell + WPF, keine
