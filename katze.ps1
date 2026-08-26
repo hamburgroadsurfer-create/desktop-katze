@@ -69,6 +69,7 @@ $CAT_CX = 90.0   # optische Mitte der Katze
 $BCX = 83.0      # Koerpermittelpunkt (Drehzentrum)
 $BCY = 142.0
 $NOSE_DX = 60.0  # Nase liegt so weit vor der Fenstermitte (fuers Naschen-Beruehren)
+$PAD = 14.0      # Rand um die Katze im Fenster, damit der weiche Schatten nicht an der Fensterkante abgeschnitten wird
 
 $GWL_EXSTYLE = -20
 $WS_EX_TRANSPARENT = 0x20
@@ -212,8 +213,10 @@ function Mirror-Pts($pts, $ax) {
     $out
 }
 
-# Fernes Bein: ein kleiner runder Blob HINTER der Silhouette, einen Ton dunkler.
-# Er wird nur verschoben (Schrittzyklus) und lugt beim Laufen hervor.
+# Fernes Bein: ein kleiner runder Blob HINTER der Silhouette in Fellfarbe. Er
+# wird im Schrittzyklus verschoben und schrumpft beim Anheben zur Bauchlinie -
+# genau wie die Bein-Ausbuchtungen der Silhouette, damit nie eine Kante unter
+# dem Bauch hervorschaut.
 function New-Foot($x, $y, $w, $h, $furRole) {
     $c = New-Object System.Windows.Controls.Canvas
     $c.Width = $w; $c.Height = $h
@@ -223,9 +226,13 @@ function New-Foot($x, $y, $w, $h, $furRole) {
     $r.Width = $w; $r.Height = $h; $r.RadiusX = $w / 2; $r.RadiusY = $w / 2
     Add-Paint $r $furRole $null
     [void]$c.Children.Add($r)
+    $sc = New-Object System.Windows.Media.ScaleTransform(1, 1)
+    $sc.CenterX = $w / 2; $sc.CenterY = $SIL_BELLY - $y      # Bauchlinie in lokalen Koordinaten
     $tr = New-Object System.Windows.Media.TranslateTransform(0, 0)
-    $c.RenderTransform = $tr
-    @{ el = $c; tr = $tr }
+    $tg = New-Object System.Windows.Media.TransformGroup
+    $tg.Children.Add($sc); $tg.Children.Add($tr)
+    $c.RenderTransform = $tg
+    @{ el = $c; tr = $tr; sc = $sc }
 }
 
 # ============================================================================
@@ -238,33 +245,37 @@ function New-Foot($x, $y, $w, $h, $furRole) {
 #  Katze schaut nach rechts, Boden y=182, Bauchlinie 165, Kopfmitte (128,128).
 #  g: 0 Rumpf, 1 Kopf, 2 Hinterbein, 3 Vorderbein  s: Glaette (1 rund, 0 Ecke)
 #  e: Ohrspitze (+1 rechts, -1 links) - dreht sich um die Ohrbasis
+#  optional 6. Feld: Kopfgewicht 0..1 - Uebergangs-Anker (Brust, Nacken) folgen
+#  dem Kopf anteilig, damit die Kontur am Hals nicht faltet
 # ============================================================================
 $SIL_DEF = @(
     @(46,124,0,1,0),   @(34,140,0,1,0),   @(37,158,0,1,0),                       # Ruecken hinten, Po, unten hinten
     @(48,168,2,1,0),   @(49,178,2,1,0),   @(60,182,2,1,0),  @(71,178,2,1,0), @(72,168,2,1,0),   # Hinterbein
     @(86,165,0,1,0),                                                            # Bauch
     @(100,168,3,1,0),  @(101,178,3,1,0),  @(112,182,3,1,0), @(123,178,3,1,0), @(124,168,3,1,0), # Vorderbein
-    @(134,161,0,1,0),                                                           # Brust
+    @(134,161,0,0.6,0,0.45),                                                    # Brust (folgt dem Kopf zu 45 %)
     @(146,150,1,1,0),  @(155,134,1,1,0),  @(156,120,1,1,0),                      # Kinn, Wange, Gesicht
     @(150.9,111.9,1,0.7,0), @(147,89,1,0.3,1), @(135.2,101,1,0.7,0),            # Ohr rechts
     @(128,100,1,1,0),                                                           # Kopf oben
     @(120.8,101,1,0.7,0), @(109,89,1,0.3,-1), @(105.1,111.9,1,0.7,0),           # Ohr links
     @(103,121,1,1,0),                                                           # Hinterkopf
-    @(90,118,0,1,0),   @(66,116,0,1,0)                                          # Nacken, Ruecken
+    @(90,118,0,0.6,0,0.55), @(66,116,0,1,0,0.15)                               # Nacken (55 % Kopf), Ruecken (15 %)
 )
 $SIL_N = $SIL_DEF.Count
 $SIL_X = New-Object double[] $SIL_N; $SIL_Y = New-Object double[] $SIL_N
 $SIL_G = New-Object int[] $SIL_N;    $SIL_S = New-Object double[] $SIL_N; $SIL_E = New-Object int[] $SIL_N
+$SIL_W = New-Object double[] $SIL_N   # Kopfgewicht der Uebergangs-Anker (6. Feld, sonst 0)
 for ($i = 0; $i -lt $SIL_N; $i++) {
     $SIL_X[$i] = $SIL_DEF[$i][0]; $SIL_Y[$i] = $SIL_DEF[$i][1]; $SIL_G[$i] = $SIL_DEF[$i][2]
     $SIL_S[$i] = $SIL_DEF[$i][3] / 6.0; $SIL_E[$i] = $SIL_DEF[$i][4]
+    $SIL_W[$i] = 0.0; if ($SIL_DEF[$i].Count -gt 5) { $SIL_W[$i] = $SIL_DEF[$i][5] }
 }
 $SIL_BELLY = 165.0     # Bauchlinie: hierhin schrumpfen angehobene Pfoetchen
 $SIL_EARBX = 15.05; $SIL_EARBY = 106.45   # Ohrbasis-Mitte: (128 +/- 15.05, 106.45)
 
 # kleines Accessoire im Kopf-Verband: Schleife am Ohr oder Halsband mit Gloeckchen.
 # Feste Farben - bleiben beim Fellwechsel gleich.
-function Add-Accessory($hg, [string]$kind) {
+function Add-Accessory($hg, $behind, [string]$kind) {
     if ($kind -eq 'bow') {
         # Schleife am rechten Ohr, in sich symmetrisch um den Knoten (145,104)
         $pink  = New-Brush '#F3A2C2'
@@ -284,59 +295,51 @@ function Add-Accessory($hg, [string]$kind) {
         [System.Windows.Controls.Canvas]::SetTop($knot, 101.6)
         [void]$hg.Children.Add($knot)
     } elseif ($kind -eq 'bell') {
-        # Halsband: ein schmaler roter Streifen, der HINTER dem Kinn hervor-
-        # schaut. Statt einer frei gezeichneten Kurve vor dem Gesicht wird eine
-        # etwas groessere Ellipse hinter der Kopfsilhouette freigestellt
-        # (Clip = Rechteck minus Kopf-Ellipse) - so schmiegt sich der Streifen
-        # von selbst an die Kontur und wirkt wie um den Hals gelegt.
-        $colC = New-Object System.Windows.Controls.Canvas
-        $colC.Width = 190; $colC.Height = 190
-        $headSil = New-Object System.Windows.Media.EllipseGeometry
-        $headSil.Center = [System.Windows.Point]::new(128, 128)
-        $headSil.RadiusX = 28; $headSil.RadiusY = 28
-        $colC.Clip = New-Object System.Windows.Media.CombinedGeometry('Exclude',
-                     (New-Object System.Windows.Media.RectangleGeometry([System.Windows.Rect]::new(99, 143, 58, 22))),
-                     $headSil)
-        $band = New-Object System.Windows.Shapes.Ellipse
-        $band.Width = 57; $band.Height = 59            # Mitte (128, 130.5)
-        $band.Fill = New-Brush '#CE4A46'
-        $band.Stroke = New-Brush '#9E332F'; $band.StrokeThickness = 1.1
-        [System.Windows.Controls.Canvas]::SetLeft($band, 99.5)
-        [System.Windows.Controls.Canvas]::SetTop($band, 101)
-        [void]$colC.Children.Add($band)
-        # Oese und Gloeckchen baumeln mittig unterm Kinn auf der Brust
+        # Halsband: ein dickes rotes Band HINTER der Silhouette, dicht entlang
+        # der Kinn-/Wangenkontur. Sichtbar bleibt nur der schmale Streifen, der
+        # unter der Kontur hervorschaut - ohne Clip, ohne gerade Schnittkante.
+        # Beide Enden liegen im Fell (links unter dem Rumpf, oben in der Wange).
+        $band = New-Object System.Windows.Shapes.Polyline
+        $pc = New-Object System.Windows.Media.PointCollection
+        foreach ($q in @(@(118,166),@(127,164.5),@(136,162),@(146,152.5),@(152.5,143),@(154,133))) {
+            $pc.Add([System.Windows.Point]::new($q[0], $q[1]))
+        }
+        $band.Points = $pc
+        $band.Stroke = New-Brush '#CE4A46'
+        $band.StrokeThickness = 5.5
+        $band.StrokeStartLineCap = 'Round'; $band.StrokeEndLineCap = 'Round'; $band.StrokeLineJoin = 'Round'
+        [void]$behind.Children.Add($band)
+        # Oese und Gloeckchen vorne, mittig unter dem Kinn auf der Brust
         $ring = New-Object System.Windows.Shapes.Ellipse
         $ring.Width = 3.4; $ring.Height = 3.4; $ring.Fill = New-Brush '#8E2B29'
-        [System.Windows.Controls.Canvas]::SetLeft($ring, 126.3)
-        [System.Windows.Controls.Canvas]::SetTop($ring, 156.9)
-        [void]$colC.Children.Add($ring)
+        [System.Windows.Controls.Canvas]::SetLeft($ring, 127.3)
+        [System.Windows.Controls.Canvas]::SetTop($ring, 158.9)
+        [void]$hg.Children.Add($ring)
         $bell = New-Object System.Windows.Shapes.Ellipse
         $bell.Width = 7.4; $bell.Height = 7.4
         $bell.Fill = New-VGrad '#F6C74F' 0.35 -0.22
         $bell.Stroke = New-Brush '#B98A21'; $bell.StrokeThickness = 0.7
-        [System.Windows.Controls.Canvas]::SetLeft($bell, 124.3)
-        [System.Windows.Controls.Canvas]::SetTop($bell, 158.5)
-        [void]$colC.Children.Add($bell)
+        [System.Windows.Controls.Canvas]::SetLeft($bell, 125.3)
+        [System.Windows.Controls.Canvas]::SetTop($bell, 160.3)
+        [void]$hg.Children.Add($bell)
         $dot = New-Object System.Windows.Shapes.Ellipse
         $dot.Width = 1.7; $dot.Height = 1.7; $dot.Fill = New-Brush '#8E6813'
-        [System.Windows.Controls.Canvas]::SetLeft($dot, 127.15)
-        [System.Windows.Controls.Canvas]::SetTop($dot, 160.5)
-        [void]$colC.Children.Add($dot)
+        [System.Windows.Controls.Canvas]::SetLeft($dot, 128.15)
+        [System.Windows.Controls.Canvas]::SetTop($dot, 162.3)
+        [void]$hg.Children.Add($dot)
         $slit = New-Object System.Windows.Shapes.Polyline
         $sp = New-Object System.Windows.Media.PointCollection
-        $sp.Add([System.Windows.Point]::new(125.9, 164))
-        $sp.Add([System.Windows.Point]::new(130.1, 164))
+        $sp.Add([System.Windows.Point]::new(126.9, 165.8))
+        $sp.Add([System.Windows.Point]::new(131.1, 165.8))
         $slit.Points = $sp
         $slit.Stroke = New-Brush '#8E6813'; $slit.StrokeThickness = 1.0
         $slit.StrokeStartLineCap = 'Round'; $slit.StrokeEndLineCap = 'Round'
-        [void]$colC.Children.Add($slit)
+        [void]$hg.Children.Add($slit)
         $gl = New-Object System.Windows.Shapes.Ellipse
         $gl.Width = 2.2; $gl.Height = 2.2; $gl.Fill = New-Brush '#FFF6DC'; $gl.Opacity = 0.9
-        [System.Windows.Controls.Canvas]::SetLeft($gl, 125.3)
-        [System.Windows.Controls.Canvas]::SetTop($gl, 159.3)
-        [void]$colC.Children.Add($gl)
-        # (keine Schnurrhaare mehr im Weg - einfach hinten anhaengen)
-        [void]$hg.Children.Add($colC)
+        [System.Windows.Controls.Canvas]::SetLeft($gl, 126.3)
+        [System.Windows.Controls.Canvas]::SetTop($gl, 161.1)
+        [void]$hg.Children.Add($gl)
     }
 }
 
@@ -387,14 +390,17 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $win.ResizeMode = 'NoResize'
     $win.ShowActivated = $false
     $win.Title = $title
-    $win.Width = $CW * $size
-    $win.Height = $CH * $size
+    $win.Width = ($CW + 2 * $PAD) * $size
+    $win.Height = ($CH + $PAD) * $size
     $c.win = $win
 
     $root = New-Canv
     $root.HorizontalAlignment = 'Left'; $root.VerticalAlignment = 'Top'
     $c.rootScale = New-Object System.Windows.Media.ScaleTransform($size, $size)
-    $root.RenderTransform = $c.rootScale
+    $c.rootPad = New-Object System.Windows.Media.TranslateTransform(($PAD * $size), 0)
+    $rtg = New-Object System.Windows.Media.TransformGroup
+    $rtg.Children.Add($c.rootScale); $rtg.Children.Add($c.rootPad)
+    $root.RenderTransform = $rtg
     $win.Content = $root
     $c.root = $root
 
@@ -438,8 +444,8 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     [void]$bodyC.Children.Add($tail)
     $c.tailTip = New-Ell 0 0 7 7 'fur' $null 0
     [void]$bodyC.Children.Add($c.tailTip)
-    $c.legBF = New-Foot 52 158 17 26 'stripe';  [void]$bodyC.Children.Add($c.legBF.el)
-    $c.legFF = New-Foot 104 158 17 26 'stripe'; [void]$bodyC.Children.Add($c.legFF.el)
+    $c.legBF = New-Foot 52 155 17 26 'fur';  [void]$bodyC.Children.Add($c.legBF.el)
+    $c.legFF = New-Foot 104 155 17 26 'fur'; [void]$bodyC.Children.Add($c.legFF.el)
 
     $c.bodyScl = New-Object System.Windows.Media.ScaleTransform(1, 1)
     $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = $GROUND
@@ -451,6 +457,20 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $bodyC.RenderTransform = $btg
     [void]$flip.Children.Add($bodyC)
 
+    # --- Kopf-Transformation: gemeinsam fuer das Halsband HINTER der
+    # Silhouette und das Gesicht davor; dieselben Zahlen wendet Apply-Pose
+    # auf die Kopf-Anker an, damit Kontur, Band und Gesicht zusammenbleiben.
+    $headScl = New-Object System.Windows.Media.ScaleTransform($headK, $headK)
+    $headScl.CenterX = 128; $headScl.CenterY = 128
+    $c.headRot = New-Object System.Windows.Media.RotateTransform(0)
+    $c.headRot.CenterX = 112; $c.headRot.CenterY = 142
+    $c.headTr = New-Object System.Windows.Media.TranslateTransform(0, 0)
+    $htg = New-Object System.Windows.Media.TransformGroup
+    $htg.Children.Add($headScl); $htg.Children.Add($c.headRot); $htg.Children.Add($c.headTr)
+    $bandC = New-Canv
+    $bandC.RenderTransform = $htg
+    [void]$flip.Children.Add($bandC)
+
     # --- Silhouette: ein Pfad, Bezier-Punkte werden in Apply-Pose gesetzt ---
     $c.silPts = New-Object System.Windows.Media.PointCollection
     for ($i = 0; $i -lt 3 * $SIL_N; $i++) { $c.silPts.Add([System.Windows.Point]::new(0, 0)) }
@@ -461,6 +481,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $c.silFig.Segments.Add($seg)
     $geo = New-Object System.Windows.Media.PathGeometry
     $geo.Figures.Add($c.silFig)
+    $geo.FillRule = [System.Windows.Media.FillRule]::Nonzero   # Schleifen fuellen statt Loecher
     $sil = New-Object System.Windows.Shapes.Path
     $sil.Data = $geo
     Add-Paint $sil 'fur' $null
@@ -473,45 +494,36 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
 
     # Maul (offen): kleines warm-rosa Oval, klappt unter der Lippenlinie auf
     $mouthG = New-Canv
-    $mo = New-Ell $FX 139.6 3.2 3.8 $null $null 0
+    $mo = New-Ell $FX 137.3 3.0 3.6 $null $null 0
     $mo.Fill = New-Brush '#A3555C'
     [void]$mouthG.Children.Add($mo)
-    $tng = New-Ell $FX 141.7 2.0 1.7 $null $null 0
+    $tng = New-Ell $FX 139.3 1.9 1.6 $null $null 0
     $tng.Fill = New-Brush '#EF9BA4'
     [void]$mouthG.Children.Add($tng)
     $c.mouthScl = New-Object System.Windows.Media.ScaleTransform(1, 0)
-    $c.mouthScl.CenterX = $FX; $c.mouthScl.CenterY = 135.8
+    $c.mouthScl.CenterX = $FX; $c.mouthScl.CenterY = 133.5
     $mouthG.RenderTransform = $c.mouthScl
     [void]$headG.Children.Add($mouthG)
 
     # zwei Punktaugen
-    $c.eyeF = New-Eye ($FX - 7.5) 129 2.4; [void]$headG.Children.Add($c.eyeF.el)
-    $c.eyeN = New-Eye ($FX + 7.5) 129 2.4; [void]$headG.Children.Add($c.eyeN.el)
+    $c.eyeF = New-Eye ($FX - 6.5) 130 2.3; [void]$headG.Children.Add($c.eyeF.el)
+    $c.eyeN = New-Eye ($FX + 6.5) 130 2.3; [void]$headG.Children.Add($c.eyeN.el)
 
     # geschlossene Augen: kleine zufriedene Boegen
-    $lidRp = @(@(($FX + 4.2),129), @(($FX + 7.5),131.2), @(($FX + 10.8),129))
-    $c.lidN = New-Line $lidRp 'edge' 1.5
-    $c.lidF = New-Line (Mirror-Pts $lidRp $FX) 'edge' 1.5
+    $lidRp = @(@(($FX + 3.5),130), @(($FX + 6.5),132.2), @(($FX + 9.5),130))
+    $c.lidN = New-Line $lidRp 'edge' 1.3
+    $c.lidF = New-Line (Mirror-Pts $lidRp $FX) 'edge' 1.3
     $c.lidF.Opacity = 0; $c.lidN.Opacity = 0
     [void]$headG.Children.Add($c.lidF); [void]$headG.Children.Add($c.lidN)
 
     # w-Maeulchen: zwei kleine Boegen
-    $lipRp = @(@($FX,135.6), @(($FX + 2.4),137.8), @(($FX + 4.8),135.8))
-    $c.lipN = New-Line $lipRp 'edge' 1.3
-    $c.lipF = New-Line (Mirror-Pts $lipRp $FX) 'edge' 1.3
+    $lipRp = @(@($FX,133.5), @(($FX + 2.3),135.5), @(($FX + 4.6),133.6))
+    $c.lipN = New-Line $lipRp 'edge' 1.2
+    $c.lipF = New-Line (Mirror-Pts $lipRp $FX) 'edge' 1.2
     [void]$headG.Children.Add($c.lipF); [void]$headG.Children.Add($c.lipN)
 
-    Add-Accessory $headG $c.acc
+    Add-Accessory $headG $bandC $c.acc
 
-    # Kopf-Transformation - dieselben Zahlen wendet Apply-Pose auf die
-    # Kopf-Anker der Silhouette an, damit Gesicht und Kontur zusammenbleiben
-    $headScl = New-Object System.Windows.Media.ScaleTransform($headK, $headK)
-    $headScl.CenterX = $FX; $headScl.CenterY = 128
-    $c.headRot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.headRot.CenterX = 112; $c.headRot.CenterY = 142
-    $c.headTr = New-Object System.Windows.Media.TranslateTransform(0, 0)
-    $htg = New-Object System.Windows.Media.TransformGroup
-    $htg.Children.Add($headScl); $htg.Children.Add($c.headRot); $htg.Children.Add($c.headTr)
     $headG.RenderTransform = $htg
     [void]$flip.Children.Add($headG)
 
@@ -1028,7 +1040,7 @@ function Move-ToScreen($c, $scr, $offset) {
 }
 
 function Update-WindowPos($c) {
-    $c.win.Left = ($c.x / $G.sx) - ($CAT_CX * $c.size)
+    $c.win.Left = ($c.x / $G.sx) - (($CAT_CX + $PAD) * $c.size)
     $c.win.Top  = ($c.groundY / $G.sy) - ($GROUND * $c.size) - $c.y
 }
 
@@ -1985,8 +1997,11 @@ function Apply-Pose($c, $a) {
     $c.bodyScl.ScaleX = $a.bsx; $c.bodyScl.ScaleY = $a.bsy
     $c.headTr.X = $a.bdx + $a.hdx; $c.headTr.Y = $a.bdy + $a.hdy
     $c.headRot.Angle = $a.hrot
-    $c.legFF.tr.X = $a.pFFx; $c.legFF.tr.Y = [Math]::Max(-17.0, $a.pFFy)
-    $c.legBF.tr.X = $a.pBFx; $c.legBF.tr.Y = [Math]::Max(-17.0, $a.pBFy)
+    # angehobene Pfoetchen schrumpfen zur Bauchlinie hin (Faktor 1 = unten, 0 = eingezogen)
+    $fF = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pFNy / 17.0))
+    $fB = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pBNy / 17.0))
+    $c.legFF.tr.X = $a.pFFx; $c.legFF.sc.ScaleY = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pFFy / 17.0))
+    $c.legBF.tr.X = $a.pBFx; $c.legBF.sc.ScaleY = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pBFy / 17.0))
 
     # --- Silhouette: Anker transformieren -----------------------------------
     $br = $a.brot * 0.0174533; $cb = [Math]::Cos($br); $sb = [Math]::Sin($br)
@@ -1994,9 +2009,6 @@ function Apply-Pose($c, $a) {
     $er = $a.ear * 0.0174533
     $hk = $c.headK
     $hx = $a.bdx + $a.hdx; $hy = $a.bdy + $a.hdy
-    # angehobene Pfoetchen schrumpfen zur Bauchlinie hin (Faktor 1 = unten, 0 = eingezogen)
-    $fF = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pFNy / 17.0))
-    $fB = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pBNy / 17.0))
     $n = $SIL_N
     $px = New-Object double[] $n; $py = New-Object double[] $n
     for ($i = 0; $i -lt $n; $i++) {
@@ -2022,6 +2034,16 @@ function Apply-Pose($c, $a) {
             $dx = ($x - $BCX) * $a.bsx; $dy = ($y - $GROUND) * $a.bsy
             $x = $BCX + $dx * $cb - $dy * $sb + $a.bdx
             $y = $GROUND + $dx * $sb + $dy * $cb + $a.bdy
+            # Uebergangs-Anker (Brust, Nacken) folgen dem Kopf anteilig, damit
+            # die Kontur am Hals nicht faltet, wenn der Kopf wandert
+            $w = $SIL_W[$i]
+            if ($w -gt 0) {
+                $kx = 128 + ($SIL_X[$i] - 128) * $hk; $ky = 128 + ($SIL_Y[$i] - 128) * $hk
+                $dx = $kx - 112; $dy = $ky - 142
+                $kx = 112 + $dx * $ch - $dy * $sh + $hx
+                $ky = 142 + $dx * $sh + $dy * $ch + $hy
+                $x = $x * (1 - $w) + $kx * $w; $y = $y * (1 - $w) + $ky * $w
+            }
         }
         $px[$i] = $x; $py[$i] = $y
     }
@@ -2072,7 +2094,7 @@ function Set-ClickThrough($c, [bool]$on) {
 function Update-HitArea($c) {
     if ($c.dragging) { Set-ClickThrough $c $false; return }
     $cur = [System.Windows.Forms.Cursor]::Position
-    $lx = (($cur.X / $G.sx) - $c.win.Left) / $c.size
+    $lx = (($cur.X / $G.sx) - $c.win.Left) / $c.size - $PAD
     $ly = (($cur.Y / $G.sy) - $c.win.Top) / $c.size
     $over = $false
     if ($lx -ge 0 -and $lx -le $CW -and $ly -ge 0 -and $ly -le $CH) {
@@ -2177,7 +2199,7 @@ function Set-CatSize($c, [double]$s) {
     $c.size = $s
     $c.pxs = $s * $G.sx
     $c.rootScale.ScaleX = $s; $c.rootScale.ScaleY = $s
-    $c.win.Width = $CW * $s; $c.win.Height = $CH * $s
+    $c.win.Width = ($CW + 2 * $PAD) * $s; $c.win.Height = ($CH + $PAD) * $s; $c.rootPad.X = $PAD * $s
 }
 
 function Set-AllSizes([double]$s) {
