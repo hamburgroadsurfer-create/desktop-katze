@@ -1,7 +1,7 @@
 # Desktop-Katzen 🐈‍⬛ 🐈
 
-**Minka** (orange getigert, mit rosa Schleife am Ohr) und ihre Freundin **Luna**
-(schwarz mit weißer Brust, weißen Pfoten und rotem Halsband mit Glöckchen) leben am
+**Minka** (zart lavendel-weiß, mit rosa Schleife am Ohr) und ihre Freundin **Luna**
+(dunkles Schiefergrau mit rotem Halsband und Glöckchen) leben am
 unteren Bildschirmrand. Sie laufen herum, putzen
 sich, gähnen, schlafen, spielen mit einem Wollknäuel, beobachten Schmetterlinge, jagen
 die Maus — **und sie beschäftigen sich miteinander.** Reines PowerShell + WPF, keine
@@ -120,7 +120,7 @@ Weiterlaufen). Beide haben eigene Zeitgeber, atmen also nicht im Gleichschritt.
 powershell -STA -File katze.ps1 -Fur grau -Size 1.4 -OhneFreundin
 ```
 
-* `-Fur` — Fell von Minka: `orange` (Standard), `grau`, `schwarz`, `weiss`, `siam`
+* `-Fur` — Fell von Minka: `weiss` (Standard, lavendel-weiß), `orange`, `grau`, `schwarz`, `siam`
 * `-Size` — 0.6 klein … 1.6 riesig (Standard 0.8; Luna ist immer ~6 % kleiner)
 * `-OhneFreundin` — nur Minka
 * `-MitBabykatzen` — Krümel und Fussel sind von Anfang an dabei
@@ -136,17 +136,19 @@ einzeln steuerbare Beine, Ohren, Augen, Maul und Schwanz an eigenen Transformati
 Beine drehen sich mit dem Rumpf mit, haben aber zusätzlich eigene Hüftwinkel und Längen —
 deshalb funktioniert der aufrechte Sitz genauso wie das Kratzen mit der Hinterpfote.
 
-**Das Aussehen** folgt bewusst dem Kindchenschema: großer runder Kopf, große runde Augen
-mit zwei Lichtpunkten, kurze stämmige Beine, rundlicher Rumpf, Brustfluffel, Wangenröte
-und weiche Farbverläufe statt flacher Flächen. Das **Gesicht ist spiegelsymmetrisch** um
-eine Mittelachse gebaut (`Mirror-Pts` spiegelt Ohren, Augenlider, Maul, Schnurrhaare und
-Wangen) — der Rumpf bleibt im Profil, das Gesicht schaut nach vorn. Deshalb wirkt es nicht
-schief und bleibt beim Umdrehen der Katze gleich.
+**Das Aussehen** ist ein flacher Sticker-Stil: eine einzige Pastellfarbe, keine Konturen,
+Streifen oder Verläufe. Weil Kopf und Rumpf dieselbe flache Farbe haben, verschmelzen sie
+zu einer weichen Silhouette. Dazu Punktaugen, ein kleines ω-Mäulchen, zarte Wangenröte,
+kurze runde Stummelbeine (die hinteren einen Ton dunkler), ein dicker runder Schwanz und
+kleine weiche Öhrchen (Dreiecke mit dicker runder Kontur in Fellfarbe). Das **Gesicht ist
+spiegelsymmetrisch** um eine Mittelachse gebaut (`Mirror-Pts` spiegelt Ohren, Augenlider,
+Maul und Wangen) — der Rumpf bleibt im Profil, das Gesicht schaut nach vorn. Deshalb wirkt
+es nicht schief und bleibt beim Umdrehen der Katze gleich.
 
 Jeder Zustand ist eine **Pose** aus 21 Zahlen (Winkel, Versätze, Streckung, Maulöffnung).
 Zwischen Posen wird weich überblendet, obendrauf kommen Schwingungen (Schrittzyklus, Atmen,
-Schwanzwedeln, Pfotenschlag). Der Schwanz ist eine Bézier-Kurve, die Tigerstreifen sind ein
-gestrichelter dicker Strich, auf die Körperform zugeschnitten. Fürs Rückenwälzen wird der
+Schwanzwedeln, Pfotenschlag). Der Schwanz ist eine dicke, rund gestrichelte Bézier-Kurve.
+Fürs Rückenwälzen wird der
 Rumpf um seine eigene Mitte gekippt, damit der Bauch nach oben zeigt.
 
 Das Miteinander steuert ein kleiner Koordinator (`Update-Social`) mit den Zuständen
