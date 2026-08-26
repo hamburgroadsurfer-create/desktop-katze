@@ -108,11 +108,11 @@ function New-Brush([string]$hex) {
 }
 
 $PALETTES = @{
-    orange  = @{ fur='#F5BE93'; stripe='#E7A87A'; cream='#FFF3E6'; inner='#F3A9A9'; nose='#E4837C'; eye='#7CC24F'; edge='#5B3A2C' }
-    grau    = @{ fur='#C8CEDC'; stripe='#B3BACB'; cream='#F2F4F9'; inner='#F0AEB4'; nose='#DE8B86'; eye='#6FC0C9'; edge='#3E4660' }
-    schwarz = @{ fur='#4C5166'; stripe='#3E4356'; cream='#EAE7EF'; inner='#C98F8E'; nose='#C97C79'; eye='#F0C84E'; edge='#F1F3FA' }
-    weiss   = @{ fur='#EEF1FA'; stripe='#D8DEEF'; cream='#FFFFFF'; inner='#F4B3C0'; nose='#E8918B'; eye='#6FA8DC'; edge='#3E4660' }
-    siam    = @{ fur='#F0E4D3'; stripe='#DECDB5'; cream='#FFF8EC'; inner='#EEA9A9'; nose='#C98882'; eye='#4FA9DC'; edge='#5A4636' }
+    orange  = @{ fur='#F5BE93'; stripe='#E7A87A'; cream='#FFF3E6'; inner='#F3A9A9'; nose='#E4837C'; eye='#5B3A2C'; edge='#5B3A2C' }
+    grau    = @{ fur='#C8CEDC'; stripe='#B3BACB'; cream='#F2F4F9'; inner='#F0AEB4'; nose='#DE8B86'; eye='#3E4660'; edge='#3E4660' }
+    schwarz = @{ fur='#4C5166'; stripe='#3E4356'; cream='#EAE7EF'; inner='#C98F8E'; nose='#C97C79'; eye='#2E3345'; edge='#F1F3FA' }
+    weiss   = @{ fur='#EEF1FA'; stripe='#D8DEEF'; cream='#FFFFFF'; inner='#F4B3C0'; nose='#E8918B'; eye='#3E4660'; edge='#3E4660' }
+    siam    = @{ fur='#F0E4D3'; stripe='#DECDB5'; cream='#FFF8EC'; inner='#EEA9A9'; nose='#C98882'; eye='#5A4636'; edge='#5A4636' }
 }
 
 # heller (f > 0) oder dunkler (f < 0) machen
@@ -255,11 +255,11 @@ $SIL_DEF = @(
     @(86,161,0,1,0),                                                            # Bauch (hoeher = schlanker)
     @(100,167,3,1,0),  @(101,178,3,1,0),  @(112,182,3,1,0), @(123,178,3,1,0), @(124,167,3,1,0), # Vorderbein
     @(132,160,0,0.6,0,0.45),                                                    # Brust (folgt dem Kopf zu 45 %)
-    @(146,150,1,1,0),  @(155,134,1,1,0),  @(156,120,1,1,0),                      # Kinn, Wange, Gesicht
+    @(145,150,1,1,0),  @(153,134,1,1,0),  @(154,120,1,1,0),                      # Kinn, Wange, Gesicht (symmetrisch zum Hinterkopf)
     @(148,113,1,0.45,0), @(144,95,1,0.3,1), @(138,101,1,0.45,0),                # Ohr rechts (winzig, rund)
     @(128,100,1,1,0),                                                           # Kopf oben
     @(118,101,1,0.45,0), @(112,95,1,0.3,-1), @(108,113,1,0.45,0),               # Ohr links (winzig, rund)
-    @(103,119,1,1,0),                                                           # Hinterkopf (runder)
+    @(102,121,1,1,0),                                                           # Hinterkopf (runder, leichte Wange)
     @(90,120.5,0,0.6,0,0.4), @(66,120,0,1,0,0.25)                              # Nacken (40 % Kopf), Ruecken (25 %) - tiefer = schlanker
 )
 $SIL_N = $SIL_DEF.Count
@@ -298,10 +298,13 @@ function Add-Accessory($hg, [string]$kind) {
     }
 }
 
-# Punktauge im Sticker-Stil: ein kleiner dunkler Punkt; ScaleY blinzelt
+# Punktauge im Sticker-Stil: Punkt in Linienfarbe + Pupille; ScaleY blinzelt
 function New-Eye($cx, $cy, $r) {
     $g = New-Canv
     [void]$g.Children.Add((New-Ell $cx $cy $r ($r * 1.2) 'edge' $null 0))
+    # Pupille: bei hellem Fell gleiche Farbe (ein dunkler Punkt), bei dunklem
+    # Fell dunkel im hellen Auge - so bleibt der Glanzpunkt sichtbar
+    [void]$g.Children.Add((New-Ell $cx $cy ($r * 0.72) ($r * 0.72 * 1.2) 'eye' $null 0))
     $sc = New-Object System.Windows.Media.ScaleTransform(1, 1)
     $sc.CenterX = $cx; $sc.CenterY = $cy
     $g.RenderTransform = $sc
