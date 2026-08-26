@@ -250,17 +250,17 @@ function New-Foot($x, $y, $w, $h, $furRole) {
 #  dem Kopf anteilig, damit die Kontur am Hals nicht faltet
 # ============================================================================
 $SIL_DEF = @(
-    @(50,124,0,1,0),   @(40,140,0,1,0),   @(42,158,0,1,0),                       # Ruecken hinten, Po, unten hinten (kompakt)
-    @(48,170,2,1,0),   @(49,179,2,1,0),   @(60,182,2,1,0),  @(71,179,2,1,0), @(72,170,2,1,0),   # Hinterbein (kurz)
-    @(86,165,0,1,0),                                                            # Bauch
-    @(100,170,3,1,0),  @(101,179,3,1,0),  @(112,182,3,1,0), @(123,179,3,1,0), @(124,170,3,1,0), # Vorderbein (kurz)
-    @(132,163,0,0.6,0,0.45),                                                    # Brust (folgt dem Kopf zu 45 %)
+    @(52,122,0,1,0),   @(44,140,0,1,0),   @(46,156,0,1,0),                       # Ruecken hinten, Po, unten hinten (schlank)
+    @(48,167,2,1,0),   @(49,178,2,1,0),   @(60,182,2,1,0),  @(71,178,2,1,0), @(72,167,2,1,0),   # Hinterbein
+    @(86,161,0,1,0),                                                            # Bauch (hoeher = schlanker)
+    @(100,167,3,1,0),  @(101,178,3,1,0),  @(112,182,3,1,0), @(123,178,3,1,0), @(124,167,3,1,0), # Vorderbein
+    @(132,160,0,0.6,0,0.45),                                                    # Brust (folgt dem Kopf zu 45 %)
     @(146,150,1,1,0),  @(155,134,1,1,0),  @(156,120,1,1,0),                      # Kinn, Wange, Gesicht
     @(148,113,1,0.45,0), @(144,95,1,0.3,1), @(138,101,1,0.45,0),                # Ohr rechts (winzig, rund)
     @(128,100,1,1,0),                                                           # Kopf oben
     @(118,101,1,0.45,0), @(112,95,1,0.3,-1), @(108,113,1,0.45,0),               # Ohr links (winzig, rund)
     @(103,119,1,1,0),                                                           # Hinterkopf (runder)
-    @(90,118,0,0.6,0,0.55), @(66,116,0,1,0,0.15)                               # Nacken (55 % Kopf), Ruecken (15 %)
+    @(90,120.5,0,0.6,0,0.4), @(66,120,0,1,0,0.25)                              # Nacken (40 % Kopf), Ruecken (25 %) - tiefer = schlanker
 )
 $SIL_N = $SIL_DEF.Count
 $SIL_X = New-Object double[] $SIL_N; $SIL_Y = New-Object double[] $SIL_N
@@ -271,7 +271,7 @@ for ($i = 0; $i -lt $SIL_N; $i++) {
     $SIL_S[$i] = $SIL_DEF[$i][3] / 6.0; $SIL_E[$i] = $SIL_DEF[$i][4]
     $SIL_W[$i] = 0.0; if ($SIL_DEF[$i].Count -gt 5) { $SIL_W[$i] = $SIL_DEF[$i][5] }
 }
-$SIL_BELLY = 165.0     # Bauchlinie: hierhin schrumpfen angehobene Pfoetchen
+$SIL_BELLY = 161.0     # Bauchlinie: hierhin schrumpfen angehobene Pfoetchen
 $SIL_EARBX = 15.0; $SIL_EARBY = 107.0     # Ohrbasis-Mitte: (128 +/- 15.0, 107.0)
 
 # kleines Accessoire im Kopf-Verband: Schleife am Ohr (Luna traegt nichts).
@@ -395,13 +395,13 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $tail = New-Object System.Windows.Shapes.Polyline
     $tail.Points = $c.tailPts
     Add-Paint $tail $null 'fur'
-    $tail.StrokeThickness = 14
+    $tail.StrokeThickness = 17
     $tail.StrokeStartLineCap = 'Round'; $tail.StrokeEndLineCap = 'Round'; $tail.StrokeLineJoin = 'Round'
     [void]$bodyC.Children.Add($tail)
-    $c.tailTip = New-Ell 0 0 7 7 'fur' $null 0
+    $c.tailTip = New-Ell 0 0 9.5 9.5 'fur' $null 0     # sanft dickere, runde Spitze = Fluff
     [void]$bodyC.Children.Add($c.tailTip)
-    $c.legBF = New-Foot 52 155 17 26 'fur';  [void]$bodyC.Children.Add($c.legBF.el)
-    $c.legFF = New-Foot 104 155 17 26 'fur'; [void]$bodyC.Children.Add($c.legFF.el)
+    $c.legBF = New-Foot 52 152 17 26 'fur';  [void]$bodyC.Children.Add($c.legBF.el)
+    $c.legFF = New-Foot 104 152 17 26 'fur'; [void]$bodyC.Children.Add($c.legFF.el)
 
     $c.bodyScl = New-Object System.Windows.Media.ScaleTransform(1, 1)
     $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = $GROUND
@@ -657,11 +657,11 @@ $POSES = @{
     run    = NewPose @{ brot=-3; bsx=1.08; tailA=24; tailC=0.4; ear=-9; hdy=1 }
     sit    = $SIT
     # Loaf: flach und breit, Pfoetchen ganz eingezogen, Bauch auf dem Boden
-    # (bdy = (1 - bsy) * 17: die Bauchlinie 165 sinkt bis zur Bodenlinie 182)
-    sleep  = NewPose @{ bdy=13.5; bsx=1.14; bsy=0.80; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
-                        hdx=2; hdy=12; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
+    # (bdy = (1 - bsy) * 21: die Bauchlinie 161 sinkt bis zur Bodenlinie 182)
+    sleep  = NewPose @{ bdy=16.8; bsx=1.14; bsy=0.80; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
+                        hdx=2; hdy=9; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
     # zusammengerollt: kompakt, alle Pfoetchen weg, Kopf tief
-    curl   = NewPose @{ bdy=15; bsx=0.96; bsy=0.90; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
+    curl   = NewPose @{ bdy=18.9; bsx=0.96; bsy=0.90; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
                         hdx=-8; hdy=10; hrot=16; tailA=-30; tailC=1.5; eye=0.05; ear=-10 }
     groom  = PoseFrom $SIT @{ pFNx=12; pFNy=-12; hdx=-8; hdy=-8; hrot=40; tailA=10; tailC=0.9; eye=0.25 }
     stretch= NewPose @{ bsx=1.18; bsy=0.88; pFNx=8; pFFx=6; pBNx=-6; pBFx=-5;
@@ -684,7 +684,7 @@ $POSES = @{
     watch  = PoseFrom $SIT @{ hdx=-7; hdy=-18; hrot=10; tailA=30; tailC=0.8; ear=3 }
     scratch= PoseFrom $SIT @{ pBNx=14; pBNy=-14; hdx=-12; hdy=-10; hrot=26; tailA=2; eye=0.35; ear=8 }
     # lang hingestreckt auf der Seite luemmeln (ersetzt das Waelzen)
-    roll   = NewPose @{ bdy=13.5; bsx=1.18; bsy=0.78; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17; pBNx=-6; pBNy=-17; pBFx=-4; pBFy=-17;
+    roll   = NewPose @{ bdy=16.4; bsx=1.18; bsy=0.78; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17; pBNx=-6; pBNy=-17; pBFx=-4; pBFy=-17;
                         hdx=-4; hdy=10; hrot=-18; eye=0.5; mouth=0.15; ear=-6; tailA=30; tailC=0.6 }
     # aufrichten am Bildschirmrand: hoch und schmal, Kopf ganz oben
     edge   = NewPose @{ bsx=0.9; bsy=1.25; brot=-5; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17;
@@ -1698,7 +1698,7 @@ function Set-Tail($c, $ox, $oy, $a, $curl) {
     $ar = $a * [Math]::PI / 180.0
     $a2 = ($a + 55 * $curl) * [Math]::PI / 180.0
     $a3 = ($a + 112 * $curl) * [Math]::PI / 180.0
-    $p0x = 52 + $ox; $p0y = 126 + $oy
+    $p0x = 54 + $ox; $p0y = 127 + $oy
     $p1x = $p0x - 20 * [Math]::Cos($ar);  $p1y = $p0y - 20 * [Math]::Sin($ar)
     $p2x = $p1x - 18 * [Math]::Cos($a2);  $p2y = $p1y - 18 * [Math]::Sin($a2)
     $p3x = $p2x - 15 * [Math]::Cos($a3);  $p3y = $p2y - 15 * [Math]::Sin($a3)
@@ -1710,8 +1710,8 @@ function Set-Tail($c, $ox, $oy, $a, $curl) {
         $c.tailPts[$i] = $pt
         $c.tailPts2[$i] = $pt
     }
-    [System.Windows.Controls.Canvas]::SetLeft($c.tailTip, $p3x - 6.6)
-    [System.Windows.Controls.Canvas]::SetTop($c.tailTip, $p3y - 6.6)
+    [System.Windows.Controls.Canvas]::SetLeft($c.tailTip, $p3x - 9.1)
+    [System.Windows.Controls.Canvas]::SetTop($c.tailTip, $p3y - 9.1)
 }
 
 function Get-AppliedPose($c, $dt) {
