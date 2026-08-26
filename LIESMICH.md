@@ -130,23 +130,25 @@ powershell -STA -File katze.ps1 -Fur grau -Size 1.4 -OhneFreundin
 
 ## Wie das gebaut ist
 
-Jede Katze ist ein Objekt (`$c`) mit eigenem Fenster, eigenem *Rig* aus WPF-Vektorformen
-und eigener Zustandsmaschine; `$G` hält alles Gemeinsame. Im Rig hängen Rumpf, Kopf, vier
-einzeln steuerbare Beine, Ohren, Augen, Maul und Schwanz an eigenen Transformationen. Die
-Beine werden nur verschoben, nie gedreht — ihr breiter Ansatz steckt im Rumpf, sodass sie in
-jeder Pose Teil der Silhouette bleiben.
+Jede Katze ist ein Objekt (`$c`) mit eigenem Fenster, eigener *Silhouette* und eigener
+Zustandsmaschine; `$G` hält alles Gemeinsame. Die Silhouette ist **eine einzige geschlossene
+Kurve** durch ~30 Ankerpunkte (Rumpf, Kopf, Öhrchen, die beiden nahen Beine als
+Ausbuchtungen), die pro Frame aus der Pose berechnet wird: Rumpf-Anker werden um die
+Bodenlinie skaliert/gedreht, Kopf-Anker eigens gedreht und verschoben, Bein-Anker im
+Schrittzyklus versetzt — und angehobene Pfötchen schrumpfen zur Bauchlinie hin, statt
+abzustehen. Die Anker werden per Catmull-Rom zu Bézier-Segmenten verbunden (`Apply-Pose`).
+Nur Schwanz und die beiden fernen Beine sind eigene Formen und hängen hinter der Kurve an
+derselben Rumpf-Transformation.
 
-**Das Aussehen** ist ein flacher Sticker-Stil und bewusst **eine einzige Körperform**: eine
-lange weiche Bohne als Rumpf, der Kopf tief eingebettet (Oberkante nur knapp über dem
-Rücken, kein Hals), Beine als kurze Stummel, deren ausgestellter Ansatz im Rumpf
-verschwindet — die geschwungenen Flanken gehen ohne Kante in die Rumpfunterkante über. Alles
-in einer Pastellfarbe ohne Konturen, Streifen oder Verläufe, darum verschmilzt es zu einer
-Silhouette; ein weicher Schlagschatten um das Ganze gibt den Sticker-Eindruck (nur bei
-Hardware-Rendering). Dazu Punktaugen, ein kleines ω-Mäulchen, zarte Wangenröte, ein dicker
-runder Schwanz und kleine weiche Öhrchen (Dreiecke mit dicker runder Kontur in Fellfarbe).
-Das **Gesicht ist spiegelsymmetrisch** um eine Mittelachse gebaut (`Mirror-Pts` spiegelt
-Ohren, Augenlider, Maul und Wangen) — der Rumpf bleibt im Profil, das Gesicht schaut nach
-vorn. Deshalb wirkt es nicht schief und bleibt beim Umdrehen der Katze gleich.
+**Das Aussehen** ist ein flacher Sticker-Stil: eine Pastellfarbe, keine Konturen, Streifen
+oder Verläufe, und die ganze Katze ist eine durchgehende weiche Form — lange Bohne, tief
+eingebetteter Kopf ohne Hals, kurze Stummelbeine als Ausbuchtungen derselben Kontur, dicker
+runder Schwanz, kleine weiche Öhrchen. Weil alles eine Kurve ist, gibt es keine Teile, die
+in irgendeiner Pose als Klumpen abstehen könnten. Ein weicher Schlagschatten um das Ganze
+gibt den Sticker-Eindruck (nur bei Hardware-Rendering). Das Gesicht ist auf das Nötigste
+reduziert: zwei Punktaugen und ein kleines ω-Mäulchen, spiegelsymmetrisch um eine
+Mittelachse (`Mirror-Pts`) — der Rumpf bleibt im Profil, das Gesicht schaut nach vorn, so
+bleibt es beim Umdrehen der Katze gleich.
 
 Jeder Zustand ist eine **Pose** aus 21 Zahlen (Winkel, Versätze, Streckung, Maulöffnung).
 Zwischen Posen wird weich überblendet, obendrauf kommen Schwingungen (Schrittzyklus, Atmen,

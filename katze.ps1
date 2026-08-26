@@ -212,33 +212,55 @@ function Mirror-Pts($pts, $ax) {
     $out
 }
 
-# Zahl kulturunabhaengig formatieren (Pfad-Syntax braucht den Punkt als Dezimaltrenner)
-function Inv($v) { ([double]$v).ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) }
-
-# Ein Bein im Sticker-Stil: unten ein runder Fuss, nach oben hin weit
-# ausgestellt. Der Ansatz verschwindet im Rumpf, und die geschwungenen
-# Flanken bilden mit der Rumpfunterkante eine weiche Kehle statt einer Kante -
-# so liest sich das Bein als Teil EINER Koerperform. Es wird nur verschoben:
-# dy=0 heisst am Boden, dy=-20 heisst 20 Pixel angehoben.
+# Fernes Bein: ein kleiner runder Blob HINTER der Silhouette, einen Ton dunkler.
+# Er wird nur verschoben (Schrittzyklus) und lugt beim Laufen hervor.
 function New-Foot($x, $y, $w, $h, $furRole) {
-    $fl = $w * 1.9                     # Breite des ausgestellten Ansatzes
-    $hw = $w / 2.0; $cx = $fl / 2.0
     $c = New-Object System.Windows.Controls.Canvas
-    $c.Width = $fl; $c.Height = $h
-    [System.Windows.Controls.Canvas]::SetLeft($c, $x - $cx)
+    $c.Width = $w; $c.Height = $h
+    [System.Windows.Controls.Canvas]::SetLeft($c, $x - $w / 2)
     [System.Windows.Controls.Canvas]::SetTop($c, $y)
-    $d = 'M 0,0 ' +
-         ('C {0},{1} {2},{3} {2},{4} ' -f (Inv ($cx - $hw - 2)), (Inv ($h * 0.30)), (Inv ($cx - $hw)), (Inv ($h * 0.55)), (Inv ($h - $hw))) +
-         ('C {0},{1} {2},{1} {2},{3} ' -f (Inv ($cx - $hw)), (Inv ($h + $hw / 3)), (Inv ($cx + $hw)), (Inv ($h - $hw))) +
-         ('C {0},{1} {2},{3} {4},0 Z' -f (Inv ($cx + $hw)), (Inv ($h * 0.55)), (Inv ($cx + $hw + 2)), (Inv ($h * 0.30)), (Inv $fl))
-    $p = New-Object System.Windows.Shapes.Path
-    $p.Data = [System.Windows.Media.Geometry]::Parse($d)
-    Add-Paint $p $furRole $null
-    [void]$c.Children.Add($p)
+    $r = New-Object System.Windows.Shapes.Rectangle
+    $r.Width = $w; $r.Height = $h; $r.RadiusX = $w / 2; $r.RadiusY = $w / 2
+    Add-Paint $r $furRole $null
+    [void]$c.Children.Add($r)
     $tr = New-Object System.Windows.Media.TranslateTransform(0, 0)
     $c.RenderTransform = $tr
     @{ el = $c; tr = $tr }
 }
+
+# ============================================================================
+#  Silhouette: die ganze Katze ist EINE geschlossene weiche Kurve durch
+#  Ankerpunkte - Rumpf, Kopf, Oehrchen und die Beine als Ausbuchtungen.
+#  Pro Frame werden die Anker transformiert (Rumpf: Skalierung/Drehung um die
+#  Bodenlinie; Kopf: eigene Drehung/Verschiebung; Beine: Schrittversatz, beim
+#  Anheben schrumpfen sie in den Bauch) und per Catmull-Rom zu Bezier-Kurven
+#  verbunden. So gibt es keine Einzelteile, die abstehen koennten.
+#  Katze schaut nach rechts, Boden y=182, Bauchlinie 165, Kopfmitte (128,128).
+#  g: 0 Rumpf, 1 Kopf, 2 Hinterbein, 3 Vorderbein  s: Glaette (1 rund, 0 Ecke)
+#  e: Ohrspitze (+1 rechts, -1 links) - dreht sich um die Ohrbasis
+# ============================================================================
+$SIL_DEF = @(
+    @(46,124,0,1,0),   @(34,140,0,1,0),   @(37,158,0,1,0),                       # Ruecken hinten, Po, unten hinten
+    @(48,168,2,1,0),   @(49,178,2,1,0),   @(60,182,2,1,0),  @(71,178,2,1,0), @(72,168,2,1,0),   # Hinterbein
+    @(86,165,0,1,0),                                                            # Bauch
+    @(100,168,3,1,0),  @(101,178,3,1,0),  @(112,182,3,1,0), @(123,178,3,1,0), @(124,168,3,1,0), # Vorderbein
+    @(134,161,0,1,0),                                                           # Brust
+    @(146,150,1,1,0),  @(155,134,1,1,0),  @(156,120,1,1,0),                      # Kinn, Wange, Gesicht
+    @(150.9,111.9,1,0.7,0), @(147,89,1,0.3,1), @(135.2,101,1,0.7,0),            # Ohr rechts
+    @(128,100,1,1,0),                                                           # Kopf oben
+    @(120.8,101,1,0.7,0), @(109,89,1,0.3,-1), @(105.1,111.9,1,0.7,0),           # Ohr links
+    @(103,121,1,1,0),                                                           # Hinterkopf
+    @(90,118,0,1,0),   @(66,116,0,1,0)                                          # Nacken, Ruecken
+)
+$SIL_N = $SIL_DEF.Count
+$SIL_X = New-Object double[] $SIL_N; $SIL_Y = New-Object double[] $SIL_N
+$SIL_G = New-Object int[] $SIL_N;    $SIL_S = New-Object double[] $SIL_N; $SIL_E = New-Object int[] $SIL_N
+for ($i = 0; $i -lt $SIL_N; $i++) {
+    $SIL_X[$i] = $SIL_DEF[$i][0]; $SIL_Y[$i] = $SIL_DEF[$i][1]; $SIL_G[$i] = $SIL_DEF[$i][2]
+    $SIL_S[$i] = $SIL_DEF[$i][3] / 6.0; $SIL_E[$i] = $SIL_DEF[$i][4]
+}
+$SIL_BELLY = 165.0     # Bauchlinie: hierhin schrumpfen angehobene Pfoetchen
+$SIL_EARBX = 15.05; $SIL_EARBY = 106.45   # Ohrbasis-Mitte: (128 +/- 15.05, 106.45)
 
 # kleines Accessoire im Kopf-Verband: Schleife am Ohr oder Halsband mit Gloeckchen.
 # Feste Farben - bleiben beim Fellwechsel gleich.
@@ -347,7 +369,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         zT = 0.0; heartT = 0.0; meowT = 0.0; batNext = 0.0; digT = 0.0
         look = 0.0; lookY = 0.0
         locked = $false; meetX = 0.0
-        kit = $false; target = $null; chuteOn = $false
+        kit = $false; target = $null; chuteOn = $false; headK = $headK
         pose = $null; base = $null
     }
     foreach ($k in 'fur','furG','stripe','cream','creamG','inner','nose','eye','eyeG','edge','dark','white') {
@@ -398,7 +420,10 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $c.shadow = $shadow
     [void]$flip.Children.Add($shadow)
 
-    # --- Schwanz: dick, rund, einfarbig ------------------------------------
+    # --- Rumpf-Verband: Schwanz und ferne Beine haengen an der Rumpf-
+    # Transformation (Skalierung/Drehung um die Bodenlinie), damit sie bei
+    # jeder Pose mit der Silhouette mitgehen.
+    $bodyC = New-Canv
     $c.tailPts  = New-Object System.Windows.Media.PointCollection
     $c.tailPts2 = New-Object System.Windows.Media.PointCollection   # von Set-Tail mitgefuehrt, hier ungenutzt
     for ($i = 0; $i -le 12; $i++) {
@@ -410,114 +435,76 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     Add-Paint $tail $null 'fur'
     $tail.StrokeThickness = 14
     $tail.StrokeStartLineCap = 'Round'; $tail.StrokeEndLineCap = 'Round'; $tail.StrokeLineJoin = 'Round'
-    [void]$flip.Children.Add($tail)
-    # die Spitze in Fellfarbe rundet das Schwanzende zusaetzlich ab
+    [void]$bodyC.Children.Add($tail)
     $c.tailTip = New-Ell 0 0 7 7 'fur' $null 0
-    [void]$flip.Children.Add($c.tailTip)
+    [void]$bodyC.Children.Add($c.tailTip)
+    $c.legBF = New-Foot 52 158 17 26 'stripe';  [void]$bodyC.Children.Add($c.legBF.el)
+    $c.legFF = New-Foot 104 158 17 26 'stripe'; [void]$bodyC.Children.Add($c.legFF.el)
 
-    # --- Beine: kurze Stummel (ferne zuerst, einen Ton dunkler) ------------
-    # Fuss 15-16 breit, Ansatz ~30 breit und im Rumpf verborgen (Rumpfunter-
-    # kante liegt auf 168, der Ansatz beginnt auf 152).
-    $c.legBF = New-Foot 54 152 15 30 'stripe';  [void]$flip.Children.Add($c.legBF.el)
-    $c.legFF = New-Foot 102 152 15 30 'stripe'; [void]$flip.Children.Add($c.legFF.el)
-
-    # --- Rumpf: eine weiche Bohne ohne Kontur. Ruecken ~116, Unterkante 168,
-    # Hinterteil x=34, vorn reicht sie bis unter den Kopf. Gleiche flache
-    # Farbe wie der Kopf - beides verschmilzt zu EINER Silhouette.
-    $bodyG = New-Canv
-    $bean = New-Object System.Windows.Shapes.Path
-    $bean.Data = [System.Windows.Media.Geometry]::Parse('M 34,144 C 34,124 56,116 88,116 C 112,116 130,126 132,146 C 133,160 122,168 98,168 C 66,168 34,166 34,144 Z')
-    Add-Paint $bean 'fur' $null
-    [void]$bodyG.Children.Add($bean)
-    # Brust: fuellt die Kehle zwischen Kinn und Vorderbein
-    [void]$bodyG.Children.Add((New-Ell 122 152 12 12 'fur' $null 0))
-
-    $c.bodyRot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.bodyRot.CenterX = $BCX; $c.bodyRot.CenterY = $BCY
     $c.bodyScl = New-Object System.Windows.Media.ScaleTransform(1, 1)
-    $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = 168      # Rumpfunterkante
-    # kippt den Rumpf um seine eigene Mitte (Bauch nach oben) fuers Waelzen
-    $c.bodyFlip = New-Object System.Windows.Media.ScaleTransform(1, 1)
-    $c.bodyFlip.CenterX = $BCX; $c.bodyFlip.CenterY = $BCY
+    $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = $GROUND
+    $c.bodyRot = New-Object System.Windows.Media.RotateTransform(0)
+    $c.bodyRot.CenterX = $BCX; $c.bodyRot.CenterY = $GROUND
     $c.bodyTr = New-Object System.Windows.Media.TranslateTransform(0, 0)
     $btg = New-Object System.Windows.Media.TransformGroup
-    $btg.Children.Add($c.bodyFlip); $btg.Children.Add($c.bodyScl)
-    $btg.Children.Add($c.bodyRot);  $btg.Children.Add($c.bodyTr)
-    $bodyG.RenderTransform = $btg
-    [void]$flip.Children.Add($bodyG)
+    $btg.Children.Add($c.bodyScl); $btg.Children.Add($c.bodyRot); $btg.Children.Add($c.bodyTr)
+    $bodyC.RenderTransform = $btg
+    [void]$flip.Children.Add($bodyC)
 
-    $c.legBN = New-Foot 62 152 16 30 'fur';  [void]$flip.Children.Add($c.legBN.el)
-    $c.legFN = New-Foot 110 152 16 30 'fur'; [void]$flip.Children.Add($c.legFN.el)
+    # --- Silhouette: ein Pfad, Bezier-Punkte werden in Apply-Pose gesetzt ---
+    $c.silPts = New-Object System.Windows.Media.PointCollection
+    for ($i = 0; $i -lt 3 * $SIL_N; $i++) { $c.silPts.Add([System.Windows.Point]::new(0, 0)) }
+    $seg = New-Object System.Windows.Media.PolyBezierSegment
+    $seg.Points = $c.silPts
+    $c.silFig = New-Object System.Windows.Media.PathFigure
+    $c.silFig.IsClosed = $true; $c.silFig.IsFilled = $true
+    $c.silFig.Segments.Add($seg)
+    $geo = New-Object System.Windows.Media.PathGeometry
+    $geo.Figures.Add($c.silFig)
+    $sil = New-Object System.Windows.Shapes.Path
+    $sil.Data = $geo
+    Add-Paint $sil 'fur' $null
+    [void]$flip.Children.Add($sil)
 
-    # --- Kopf: tief in den Rumpf eingebettet, Oberkante nur knapp ueber dem
-    # Ruecken - kein Hals, wie beim Sticker. Kreis um (128,128), r=28.
+    # --- Gesicht: nur das Noetigste - zwei Punkte und ein w-Maeulchen. Alles
+    # spiegelsymmetrisch zur Achse $FX; der Kopf selbst ist Teil der Silhouette.
     $headG = New-Canv
-
-    # ---- Gesicht: alles spiegelsymmetrisch zur Achse $FX ------------------
-    # Der Rumpf bleibt im Profil, das Gesicht schaut nach vorn - so wirkt es
-    # symmetrisch statt schief, und beim Umdrehen der Katze bleibt es gleich.
     $FX = 128.0
 
-    # kleine Oehrchen: Dreiecke mit dicker runder Kontur in Fellfarbe -
-    # das rundet die Spitzen weich ab, ohne eine sichtbare Linie zu erzeugen
-    $earRp = @(@(137.6,101.7),@(152.7,114.9),@(151,86))
-    $earR  = New-Poly $earRp 'fur' 'fur' 5
-    $earR.StrokeLineJoin = 'Round'
-    $earL  = New-Poly (Mirror-Pts $earRp $FX) 'fur' 'fur' 5
-    $earL.StrokeLineJoin = 'Round'
-    $c.earFrot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.earFrot.CenterX = 2 * $FX - 145; $c.earFrot.CenterY = 108
-    $c.earNrot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.earNrot.CenterX = 145; $c.earNrot.CenterY = 108
-    $earL.RenderTransform = $c.earFrot
-    $earR.RenderTransform = $c.earNrot
-    [void]$headG.Children.Add($earL); [void]$headG.Children.Add($earR)
-
-    # runder Kopf - gleiche Farbe wie der Rumpf, keine Kontur
-    [void]$headG.Children.Add((New-Ell $FX 128 28 28 'fur' $null 0))
-
-    # zarte Wangenroete
-    foreach ($bx in @(($FX - 13), ($FX + 13))) {
-        $bl = New-Ell $bx 134.5 4.2 2.6 'inner' $null 0
-        $bl.Opacity = 0.35
-        [void]$headG.Children.Add($bl)
-    }
-
-    # Maul (offen): kleines warm-rosa Oval mit Zunge, klappt unter der
-    # Lippenlinie auf - bleibt auch weit offen niedlich
+    # Maul (offen): kleines warm-rosa Oval, klappt unter der Lippenlinie auf
     $mouthG = New-Canv
-    $mo = New-Ell $FX 139.6 3.4 4.0 $null $null 0
+    $mo = New-Ell $FX 139.6 3.2 3.8 $null $null 0
     $mo.Fill = New-Brush '#A3555C'
-    $mo.Stroke = New-Brush '#7A3A42'; $mo.StrokeThickness = 0.9
     [void]$mouthG.Children.Add($mo)
-    $tng = New-Ell $FX 141.9 2.2 1.9 $null $null 0
+    $tng = New-Ell $FX 141.7 2.0 1.7 $null $null 0
     $tng.Fill = New-Brush '#EF9BA4'
     [void]$mouthG.Children.Add($tng)
     $c.mouthScl = New-Object System.Windows.Media.ScaleTransform(1, 0)
-    $c.mouthScl.CenterX = $FX; $c.mouthScl.CenterY = 135.6
+    $c.mouthScl.CenterX = $FX; $c.mouthScl.CenterY = 135.8
     $mouthG.RenderTransform = $c.mouthScl
     [void]$headG.Children.Add($mouthG)
 
-    # zwei Punktaugen, dicht beieinander
-    $c.eyeF = New-Eye ($FX - 8) 129.5 2.6; [void]$headG.Children.Add($c.eyeF.el)
-    $c.eyeN = New-Eye ($FX + 8) 129.5 2.6; [void]$headG.Children.Add($c.eyeN.el)
+    # zwei Punktaugen
+    $c.eyeF = New-Eye ($FX - 7.5) 129 2.4; [void]$headG.Children.Add($c.eyeF.el)
+    $c.eyeN = New-Eye ($FX + 7.5) 129 2.4; [void]$headG.Children.Add($c.eyeN.el)
 
     # geschlossene Augen: kleine zufriedene Boegen
-    $lidRp = @(@(($FX + 4.5),129.5), @(($FX + 8),131.8), @(($FX + 11.5),129.5))
-    $c.lidN = New-Line $lidRp 'edge' 1.6
-    $c.lidF = New-Line (Mirror-Pts $lidRp $FX) 'edge' 1.6
+    $lidRp = @(@(($FX + 4.2),129), @(($FX + 7.5),131.2), @(($FX + 10.8),129))
+    $c.lidN = New-Line $lidRp 'edge' 1.5
+    $c.lidF = New-Line (Mirror-Pts $lidRp $FX) 'edge' 1.5
     $c.lidF.Opacity = 0; $c.lidN.Opacity = 0
     [void]$headG.Children.Add($c.lidF); [void]$headG.Children.Add($c.lidN)
 
-    # "w"-Maeulchen: zwei kleine Boegen, keine Nase, keine Schnurrhaare
-    $lipRp = @(@($FX,135.4), @(($FX + 2.6),137.8), @(($FX + 5.2),135.6))
-    $c.lipN = New-Line $lipRp 'edge' 1.5
-    $c.lipF = New-Line (Mirror-Pts $lipRp $FX) 'edge' 1.5
+    # w-Maeulchen: zwei kleine Boegen
+    $lipRp = @(@($FX,135.6), @(($FX + 2.4),137.8), @(($FX + 4.8),135.8))
+    $c.lipN = New-Line $lipRp 'edge' 1.3
+    $c.lipF = New-Line (Mirror-Pts $lipRp $FX) 'edge' 1.3
     [void]$headG.Children.Add($c.lipF); [void]$headG.Children.Add($c.lipN)
 
     Add-Accessory $headG $c.acc
 
-    # optionale Kopf-Skalierung (Babykatzen bekommen einen noch groesseren Kopf)
+    # Kopf-Transformation - dieselben Zahlen wendet Apply-Pose auf die
+    # Kopf-Anker der Silhouette an, damit Gesicht und Kontur zusammenbleiben
     $headScl = New-Object System.Windows.Media.ScaleTransform($headK, $headK)
     $headScl.CenterX = $FX; $headScl.CenterY = 128
     $c.headRot = New-Object System.Windows.Media.RotateTransform(0)
@@ -678,81 +665,59 @@ function PoseFrom($basePose, [hashtable]$over) {
 }
 function NewPose([hashtable]$over) { PoseFrom $DEFAULT_POSE $over }
 
-# aufrecht sitzend: Hinterteil sinkt ab, Vorderpfoetchen stehen am Boden,
-# Hinterpfoetchen sind untergeschoben und schauen nur ein Stueck heraus
-# bdy=-4, damit das Hinterteil gerade am Boden sitzt: die gedrehte Bohne
-# reicht ~45 Pixel unter ihre Mitte, die Mitte liegt auf 142, der Boden auf 182.
-$SIT = NewPose @{ bdy=-4; brot=-30; pFNx=9; pFFx=7; pBNy=-2; pBFy=-1;
-                  hdx=-5; hdy=-5; hrot=25; tailA=6; tailC=0.95 }
+# Sitzen: der Koerper richtet sich auf - schmaler und hoeher. Skaliert wird um
+# die Bodenlinie, die Fuesse bleiben also stehen; der Kopf rueckt nach oben.
+$SIT = NewPose @{ bsx=0.82; bsy=1.28; hdx=-9; hdy=-16; hrot=4; pFNx=6; pFFx=4; tailA=6; tailC=0.95 }
 
 $POSES = @{
     idle   = NewPose @{ tailA=40; tailC=0.5 }
-    walk   = NewPose @{ tailA=42; tailC=0.42 }
-    run    = NewPose @{ brot=-5; bsx=1.07; bdy=3; tailA=12; tailC=0.12; ear=-9; hdy=1 }
+    walk   = NewPose @{ tailA=42; tailC=0.55 }
+    run    = NewPose @{ brot=-3; bsx=1.08; tailA=24; tailC=0.4; ear=-9; hdy=1 }
     sit    = $SIT
-    # Sphinx-Loaf: flach und waagerecht, alle Pfoetchen untergeschoben
-    # (nur so weit angehoben, dass die Beinsaeulen nicht oben aus dem Ruecken ragen)
-    sleep  = NewPose @{ bdy=14; bsx=1.14; bsy=0.88;
-                        pFNx=3; pFNy=-11; pFFx=2; pFFy=-10; pBNy=-11; pBFy=-10;
-                        hdx=2; hdy=12; hrot=0; tailA=-16; tailC=-0.25; eye=0.05; ear=-6 }
-    # zusammengerollt: runder Rumpf, Nase tief eingezogen
-    curl   = NewPose @{ bdy=14; bsx=0.96; bsy=1.02;
-                        pFNy=-19; pFFy=-18; pBNy=-19; pBFy=-18;
-                        hdx=-10; hdy=8; hrot=38; tailA=-14; tailC=-0.55; eye=0.05; ear=-10 }
-    # putzt sich: Vorderpfoetchen zum Maul angehoben
-    groom  = PoseFrom $SIT @{ pFNx=14; pFNy=-26; hdx=-8; hdy=4; hrot=44; tailA=10; tailC=0.9; eye=0.25 }
-    stretch= NewPose @{ bdy=6; brot=13; bsx=1.18; pFNx=-7; pFFx=-6; pBNx=5; pBFx=4;
-                        hdy=6; hrot=15; tailA=74; tailC=0.2; eye=0.3 }
-    crouch = NewPose @{ bdy=14; bsy=0.84; bsx=1.05; pFNy=-5; pFFy=-4; pBNy=-5; pBFy=-4;
-                        hdy=6; hrot=4; tailA=-8; tailC=0.1; ear=-7 }
-    leap   = NewPose @{ bsy=1.06; bsx=1.08; brot=-9;
-                        pFNx=9; pFNy=-18; pFFx=8; pFFy=-16; pBNx=-9; pBNy=-12; pBFx=-8; pBFy=-11;
+    # Loaf: flach und breit, Pfoetchen eingezogen, Kopf abgelegt
+    sleep  = NewPose @{ bsx=1.14; bsy=0.80; pFNy=-11; pFFy=-10; pBNy=-11; pBFy=-10;
+                        hdx=2; hdy=12; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
+    # zusammengerollt: kompakt, alle Pfoetchen weg, Kopf tief
+    curl   = NewPose @{ bsx=0.96; bsy=0.90; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
+                        hdx=-8; hdy=10; hrot=16; tailA=-30; tailC=1.5; eye=0.05; ear=-10 }
+    groom  = PoseFrom $SIT @{ pFNx=12; pFNy=-12; hdx=-8; hdy=-8; hrot=40; tailA=10; tailC=0.9; eye=0.25 }
+    stretch= NewPose @{ bsx=1.18; bsy=0.88; pFNx=8; pFFx=6; pBNx=-6; pBFx=-5;
+                        hdx=4; hdy=9; hrot=12; tailA=74; tailC=0.2; eye=0.3 }
+    crouch = NewPose @{ bsy=0.82; bsx=1.05; pFNy=-4; pFFy=-3; pBNy=-4; pBFy=-3;
+                        hdy=8; hrot=4; tailA=10; tailC=0.6; ear=-7 }
+    leap   = NewPose @{ bsy=1.06; bsx=1.08; brot=-6;
+                        pFNx=9; pFNy=-10; pFFx=8; pFFy=-9; pBNx=-9; pBNy=-8; pBFx=-8; pBFy=-7;
                         tailA=58; tailC=-0.3 }
-    land   = NewPose @{ bdy=14; bsy=0.74; bsx=1.16;
-                        pFNx=6; pFNy=-2; pFFx=5; pFFy=-2; pBNx=-6; pBNy=-2; pBFx=-5; pBFy=-2;
-                        hdy=5; tailA=34; tailC=0.3; ear=-4 }
-    fall   = NewPose @{ bsy=0.96; pFNx=7; pFNy=-15; pFFx=6; pFFy=-13;
-                        pBNx=-7; pBNy=-15; pBFx=-6; pBFy=-13; tailA=82; tailC=-0.5; ear=-6 }
-    drag   = NewPose @{ brot=8; pFNx=3; pFNy=-8; pFFx=2; pFFy=-7; pBNx=-3; pBNy=-8; pBFx=-2; pBFy=-7;
+    land   = NewPose @{ bsy=0.76; bsx=1.16; pFNx=6; pFFx=5; pBNx=-6; pBFx=-5;
+                        hdy=6; tailA=34; tailC=0.6; ear=-4 }
+    fall   = NewPose @{ bsy=0.96; pFNx=7; pFNy=-8; pFFx=6; pFFy=-7;
+                        pBNx=-7; pBNy=-8; pBFx=-6; pBFy=-7; tailA=82; tailC=-0.5; ear=-6 }
+    drag   = NewPose @{ brot=6; bsy=1.04; pFNx=3; pFNy=-6; pFFx=2; pFFy=-5; pBNx=-3; pBNy=-6; pBFx=-2; pBFy=-5;
                         tailA=100; tailC=-0.4; ear=-11 }
-    pet    = PoseFrom $SIT @{ hdx=-2; hdy=-9; hrot=20; tailA=86; tailC=0.26; eye=0.08; ear=5 }
-    chase  = NewPose @{ bdy=6; bsy=0.92; hdy=3; tailA=-4; tailC=0.15; ear=-5 }
-    yawn   = PoseFrom $SIT @{ hdx=-7; hdy=-11; hrot=4; tailA=12; tailC=0.9; eye=0.06; mouth=1.0; ear=-3 }
-    meow   = PoseFrom $SIT @{ hdx=-6; hdy=-8; hrot=12; tailA=20; tailC=0.85; mouth=0.7 }
-    watch  = PoseFrom $SIT @{ hdx=-4; hdy=-8; hrot=14; tailA=30; tailC=0.8; ear=3 }
-    # kratzt sich mit dem Hinterpfoetchen hinterm Ohr
-    scratch= PoseFrom $SIT @{ pBNx=26; pBNy=-42; hdx=-13; hdy=2; hrot=28; tailA=2; eye=0.35; ear=8 }
-    # waelzt sich auf dem Ruecken: Rumpf gekippt, alle vier Pfoetchen in der Luft
-    roll   = NewPose @{ bdy=14; bsx=1.12; bsy=0.86; bflip=-1;
-                        pFNx=4; pFNy=-34; pFFx=2; pFFy=-30; pBNx=-4; pBNy=-34; pBFx=-2; pBFy=-30;
-                        hdx=-2; hdy=10; hrot=-26; eye=0.25; mouth=0.25; ear=-8; tailA=-24; tailC=0.35 }
-    # steht am Bildschirmrand auf den Hinterbeinen und kratzt
-    edge   = NewPose @{ bdy=-10; brot=-52; pBNx=-4; pFNx=8; pFNy=-48; pFFx=6; pFFy=-42;
-                        hdx=-24; hdy=-4; hrot=-8; tailA=-58; tailC=0.25; ear=-2 }
-    # --- weitere Aktionen ---
-    # winkt sitzend mit dem Vorderpfoetchen
-    wave   = PoseFrom $SIT @{ pFNx=15; pFNy=-34; hdx=-3; hrot=18; tailA=20; tailC=0.8; ear=4 }
-    # schnuppert im Schneckentempo am Boden
-    sniff  = NewPose @{ bdy=10; bsy=0.96; pFNy=-2; pBNy=-2; hdx=6; hdy=12; hrot=40; ear=5;
-                        tailA=30; tailC=0.4 }
-    # Katzenbuckel: Ruecken hoch, Schwanz senkrecht
-    arch   = NewPose @{ bdy=-5; bsy=1.18; bsx=0.93; pFNx=-4; pFFx=-3; pBNx=4; pBFx=3;
-                        hdx=-2; hdy=5; hrot=22; tailA=98; tailC=-0.12; ear=-6; eye=0.55 }
-    # schuettelt sich (nach dem Aufwachen oder nach dem Hochheben)
-    shake  = NewPose @{ bdy=2; eye=0.25; ear=-4; tailA=40; tailC=0.3 }
-    # scharrt mit den Vorderpfoetchen am Boden
-    dig    = NewPose @{ bdy=9; bsy=0.94; pBNy=-4; pBFy=-3; hdy=5; hrot=20;
-                        tailA=20; tailC=0.2; ear=2 }
-    # macht Maennchen und bettelt
-    beg    = NewPose @{ bdy=-10; brot=-52; pBNx=-4; pFNx=9; pFNy=-42; pFFx=7; pFFy=-37;
-                        hdx=-24; hdy=-6; hrot=-4; tailA=-58; tailC=0.3; ear=6 }
-    # schmiegt sich an die Freundin
-    rub    = NewPose @{ bdy=2; hdx=-2; hrot=-8; tailA=104; tailC=0.2; ear=5; eye=0.45 }
-    # schlaegt nach dem Wollknaeuel
-    bat    = NewPose @{ bdy=10; bsy=0.90; pFNx=12; pFNy=-8; pBNy=-4; pBFy=-3;
-                        hdy=4; hrot=10; tailA=30; tailC=0.4; ear=-3 }
-    # Naeschen aneinander: Hals vorgestreckt, Ohren nach vorn, Schwanz hoch
-    greet  = NewPose @{ bdy=1; hdx=9; hdy=3; hrot=7; tailA=92; tailC=0.28; ear=6 }
+    pet    = PoseFrom $SIT @{ hdy=-20; hrot=16; tailA=86; tailC=0.26; eye=0.08; ear=5 }
+    chase  = NewPose @{ bsy=0.94; hdy=3; tailA=12; tailC=0.5; ear=-5 }
+    yawn   = PoseFrom $SIT @{ hdx=-8; hdy=-20; hrot=2; tailA=12; tailC=0.9; eye=0.06; mouth=1.0; ear=-3 }
+    meow   = PoseFrom $SIT @{ hdx=-8; hdy=-18; hrot=8; tailA=20; tailC=0.85; mouth=0.7 }
+    watch  = PoseFrom $SIT @{ hdx=-7; hdy=-18; hrot=10; tailA=30; tailC=0.8; ear=3 }
+    scratch= PoseFrom $SIT @{ pBNx=14; pBNy=-14; hdx=-12; hdy=-10; hrot=26; tailA=2; eye=0.35; ear=8 }
+    # lang hingestreckt auf der Seite luemmeln (ersetzt das Waelzen)
+    roll   = NewPose @{ bsx=1.18; bsy=0.78; pFNx=6; pFNy=-10; pFFx=4; pFFy=-9; pBNx=-6; pBNy=-10; pBFx=-4; pBFy=-9;
+                        hdx=-4; hdy=10; hrot=-18; eye=0.5; mouth=0.15; ear=-6; tailA=30; tailC=0.6 }
+    # aufrichten am Bildschirmrand: hoch und schmal, Kopf ganz oben
+    edge   = NewPose @{ bsx=0.9; bsy=1.25; brot=-5; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17;
+                        hdx=-4; hdy=-14; hrot=-6; tailA=-58; tailC=0.25; ear=-2 }
+    wave   = PoseFrom $SIT @{ pFNx=12; pFNy=-14; hdx=-6; hrot=14; tailA=20; tailC=0.8; ear=4 }
+    sniff  = NewPose @{ bsy=0.96; pFNy=-2; pBNy=-2; hdx=6; hdy=12; hrot=34; ear=5; tailA=30; tailC=0.4 }
+    arch   = NewPose @{ bsy=1.16; bsx=0.92; pFNx=-4; pFFx=-3; pBNx=4; pBFx=3;
+                        hdx=-2; hdy=6; hrot=20; tailA=98; tailC=-0.12; ear=-6; eye=0.55 }
+    shake  = NewPose @{ eye=0.25; ear=-4; tailA=40; tailC=0.3 }
+    dig    = NewPose @{ bsy=0.94; pBNy=-4; pBFy=-3; hdy=6; hrot=18; tailA=24; tailC=0.5; ear=2 }
+    # Maennchen machen: wie 'edge', Ohren nach vorn
+    beg    = NewPose @{ bsx=0.9; bsy=1.25; brot=-5; pFNx=6; pFNy=-17; pFFx=4; pFFy=-17;
+                        hdx=-4; hdy=-14; hrot=-2; tailA=-58; tailC=0.3; ear=6 }
+    rub    = NewPose @{ hdx=-2; hrot=-8; tailA=104; tailC=0.2; ear=5; eye=0.45 }
+    bat    = NewPose @{ bsy=0.92; pFNx=12; pFNy=-8; pBNy=-4; pBFy=-3; hdy=4; hrot=10; tailA=30; tailC=0.4; ear=-3 }
+    greet  = NewPose @{ hdx=9; hdy=3; hrot=7; tailA=92; tailC=0.28; ear=6 }
 }
 
 # Zustaende, die sich eine Pose mit einem anderen teilen
@@ -2014,32 +1979,74 @@ function Get-AppliedPose($c, $dt) {
 }
 
 function Apply-Pose($c, $a) {
+    # Rumpf-Verband (Schwanz, ferne Beine) und Gesichts-Verband
     $c.bodyTr.X = $a.bdx; $c.bodyTr.Y = $a.bdy
     $c.bodyRot.Angle = $a.brot
     $c.bodyScl.ScaleX = $a.bsx; $c.bodyScl.ScaleY = $a.bsy
-    $c.bodyFlip.ScaleY = $a.bflip
-
     $c.headTr.X = $a.bdx + $a.hdx; $c.headTr.Y = $a.bdy + $a.hdy
     $c.headRot.Angle = $a.hrot
+    $c.legFF.tr.X = $a.pFFx; $c.legFF.tr.Y = [Math]::Max(-17.0, $a.pFFy)
+    $c.legBF.tr.X = $a.pBFx; $c.legBF.tr.Y = [Math]::Max(-17.0, $a.pBFy)
 
-    # Pfoetchen werden nur verschoben. Sie folgen dem Rumpf absichtlich NICHT:
-    # wer am Boden steht, bleibt am Boden, auch wenn sich der Rumpf senkt.
-    $c.legFN.tr.X = $a.pFNx; $c.legFN.tr.Y = $a.pFNy
-    $c.legFF.tr.X = $a.pFFx; $c.legFF.tr.Y = $a.pFFy
-    $c.legBN.tr.X = $a.pBNx; $c.legBN.tr.Y = $a.pBNy
-    $c.legBF.tr.X = $a.pBFx; $c.legBF.tr.Y = $a.pBFy
+    # --- Silhouette: Anker transformieren -----------------------------------
+    $br = $a.brot * 0.0174533; $cb = [Math]::Cos($br); $sb = [Math]::Sin($br)
+    $hr = $a.hrot * 0.0174533; $ch = [Math]::Cos($hr); $sh = [Math]::Sin($hr)
+    $er = $a.ear * 0.0174533
+    $hk = $c.headK
+    $hx = $a.bdx + $a.hdx; $hy = $a.bdy + $a.hdy
+    # angehobene Pfoetchen schrumpfen zur Bauchlinie hin (Faktor 1 = unten, 0 = eingezogen)
+    $fF = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pFNy / 17.0))
+    $fB = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pBNy / 17.0))
+    $n = $SIL_N
+    $px = New-Object double[] $n; $py = New-Object double[] $n
+    for ($i = 0; $i -lt $n; $i++) {
+        $x = $SIL_X[$i]; $y = $SIL_Y[$i]; $g = $SIL_G[$i]
+        if ($g -eq 1) {
+            $e = $SIL_E[$i]
+            if ($e -ne 0) {
+                # Ohrspitze um die Ohrbasis drehen (rechtes Ohr +ear, linkes -ear)
+                $bx = 128 + $e * $SIL_EARBX; $by = $SIL_EARBY
+                $ca = [Math]::Cos($er * $e); $sa = [Math]::Sin($er * $e)
+                $dx = $x - $bx; $dy = $y - $by
+                $x = $bx + $dx * $ca - $dy * $sa; $y = $by + $dx * $sa + $dy * $ca
+            }
+            # Kopf: Skalierung um (128,128), Drehung um (112,142), Verschiebung
+            $x = 128 + ($x - 128) * $hk; $y = 128 + ($y - 128) * $hk
+            $dx = $x - 112; $dy = $y - 142
+            $x = 112 + $dx * $ch - $dy * $sh + $hx
+            $y = 142 + $dx * $sh + $dy * $ch + $hy
+        } else {
+            if ($g -eq 3)     { $x += $a.pFNx; $y = $SIL_BELLY + ($y - $SIL_BELLY) * $fF }
+            elseif ($g -eq 2) { $x += $a.pBNx; $y = $SIL_BELLY + ($y - $SIL_BELLY) * $fB }
+            # Rumpf: Skalierung und Drehung um die Bodenlinie, dann Verschiebung
+            $dx = ($x - $BCX) * $a.bsx; $dy = ($y - $GROUND) * $a.bsy
+            $x = $BCX + $dx * $cb - $dy * $sb + $a.bdx
+            $y = $GROUND + $dx * $sb + $dy * $cb + $a.bdy
+        }
+        $px[$i] = $x; $py[$i] = $y
+    }
+    # --- Catmull-Rom -> kubische Bezier-Segmente (geschlossen) --------------
+    $c.silFig.StartPoint = [System.Windows.Point]::new($px[0], $py[0])
+    $pts = $c.silPts
+    for ($i = 0; $i -lt $n; $i++) {
+        $i0 = ($i + $n - 1) % $n; $i1 = ($i + 1) % $n; $i2 = ($i + 2) % $n
+        $s1 = $SIL_S[$i]; $s2 = $SIL_S[$i1]
+        $pts[3 * $i]     = [System.Windows.Point]::new($px[$i]  + ($px[$i1] - $px[$i0]) * $s1, $py[$i]  + ($py[$i1] - $py[$i0]) * $s1)
+        $pts[3 * $i + 1] = [System.Windows.Point]::new($px[$i1] - ($px[$i2] - $px[$i])  * $s2, $py[$i1] - ($py[$i2] - $py[$i])  * $s2)
+        $pts[3 * $i + 2] = [System.Windows.Point]::new($px[$i1], $py[$i1])
+    }
 
-    $c.earFrot.Angle = $a.ear * -1; $c.earNrot.Angle = $a.ear
-    $e = [Math]::Max(0.05, $a.eye)
-    $c.eyeF.scl.ScaleY = $e; $c.eyeN.scl.ScaleY = $e
+    # --- Gesicht --------------------------------------------------------------
+    $e2 = [Math]::Max(0.05, $a.eye)
+    $c.eyeF.scl.ScaleY = $e2; $c.eyeN.scl.ScaleY = $e2
     $lidOp = [Math]::Max(0, 1 - $a.eye * 5)
     $c.lidF.Opacity = $lidOp; $c.lidN.Opacity = $lidOp
-
     $m = [Math]::Max(0, [Math]::Min(1, $a.mouth))
     $c.mouthScl.ScaleY = $m; $c.mouthScl.ScaleX = 0.65 + 0.35 * $m
     $c.lipF.Opacity = 1 - $m; $c.lipN.Opacity = 1 - $m
 
-    Set-Tail $c $a.bdx $a.bdy $a.tailA $a.tailC
+    # Schwanz liegt im Rumpf-Verband, bekommt die Verschiebung also schon dort
+    Set-Tail $c 0 0 $a.tailA $a.tailC
 
     $c.flipScale.ScaleX = $c.facing
 
