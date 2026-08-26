@@ -133,17 +133,20 @@ powershell -STA -File katze.ps1 -Fur grau -Size 1.4 -OhneFreundin
 Jede Katze ist ein Objekt (`$c`) mit eigenem Fenster, eigenem *Rig* aus WPF-Vektorformen
 und eigener Zustandsmaschine; `$G` hält alles Gemeinsame. Im Rig hängen Rumpf, Kopf, vier
 einzeln steuerbare Beine, Ohren, Augen, Maul und Schwanz an eigenen Transformationen. Die
-Beine drehen sich mit dem Rumpf mit, haben aber zusätzlich eigene Hüftwinkel und Längen —
-deshalb funktioniert der aufrechte Sitz genauso wie das Kratzen mit der Hinterpfote.
+Beine werden nur verschoben, nie gedreht — ihr breiter Ansatz steckt im Rumpf, sodass sie in
+jeder Pose Teil der Silhouette bleiben.
 
-**Das Aussehen** ist ein flacher Sticker-Stil: eine einzige Pastellfarbe, keine Konturen,
-Streifen oder Verläufe. Weil Kopf und Rumpf dieselbe flache Farbe haben, verschmelzen sie
-zu einer weichen Silhouette. Dazu Punktaugen, ein kleines ω-Mäulchen, zarte Wangenröte,
-kurze runde Stummelbeine (die hinteren einen Ton dunkler), ein dicker runder Schwanz und
-kleine weiche Öhrchen (Dreiecke mit dicker runder Kontur in Fellfarbe). Das **Gesicht ist
-spiegelsymmetrisch** um eine Mittelachse gebaut (`Mirror-Pts` spiegelt Ohren, Augenlider,
-Maul und Wangen) — der Rumpf bleibt im Profil, das Gesicht schaut nach vorn. Deshalb wirkt
-es nicht schief und bleibt beim Umdrehen der Katze gleich.
+**Das Aussehen** ist ein flacher Sticker-Stil und bewusst **eine einzige Körperform**: eine
+lange weiche Bohne als Rumpf, der Kopf tief eingebettet (Oberkante nur knapp über dem
+Rücken, kein Hals), Beine als kurze Stummel, deren ausgestellter Ansatz im Rumpf
+verschwindet — die geschwungenen Flanken gehen ohne Kante in die Rumpfunterkante über. Alles
+in einer Pastellfarbe ohne Konturen, Streifen oder Verläufe, darum verschmilzt es zu einer
+Silhouette; ein weicher Schlagschatten um das Ganze gibt den Sticker-Eindruck (nur bei
+Hardware-Rendering). Dazu Punktaugen, ein kleines ω-Mäulchen, zarte Wangenröte, ein dicker
+runder Schwanz und kleine weiche Öhrchen (Dreiecke mit dicker runder Kontur in Fellfarbe).
+Das **Gesicht ist spiegelsymmetrisch** um eine Mittelachse gebaut (`Mirror-Pts` spiegelt
+Ohren, Augenlider, Maul und Wangen) — der Rumpf bleibt im Profil, das Gesicht schaut nach
+vorn. Deshalb wirkt es nicht schief und bleibt beim Umdrehen der Katze gleich.
 
 Jeder Zustand ist eine **Pose** aus 21 Zahlen (Winkel, Versätze, Streckung, Maulöffnung).
 Zwischen Posen wird weich überblendet, obendrauf kommen Schwingungen (Schrittzyklus, Atmen,

@@ -66,7 +66,7 @@ $CW = 190.0      # Breite
 $CH = 190.0      # Hoehe (oberer Bereich = Platz fuer Herzchen / Z-Z-Z)
 $GROUND = 182.0  # Bodenlinie
 $CAT_CX = 90.0   # optische Mitte der Katze
-$BCX = 86.0      # Koerpermittelpunkt (Drehzentrum)
+$BCX = 83.0      # Koerpermittelpunkt (Drehzentrum)
 $BCY = 142.0
 $NOSE_DX = 60.0  # Nase liegt so weit vor der Fenstermitte (fuers Naschen-Beruehren)
 
@@ -212,19 +212,29 @@ function Mirror-Pts($pts, $ax) {
     $out
 }
 
-# Ein Pfoetchen: eine runde Saeule, die oben im Rumpf verschwindet und unten in
-# einer Pfote endet. Sie wird NUR verschoben, nie gedreht oder gestaucht - genau
-# deshalb kann sie nicht "abstehen": dy=0 heisst am Boden, dy=-20 heisst 20 Pixel
-# angehoben. Fertig. Keine Winkel, keine Laengenkorrektur.
+# Zahl kulturunabhaengig formatieren (Pfad-Syntax braucht den Punkt als Dezimaltrenner)
+function Inv($v) { ([double]$v).ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) }
+
+# Ein Bein im Sticker-Stil: unten ein runder Fuss, nach oben hin weit
+# ausgestellt. Der Ansatz verschwindet im Rumpf, und die geschwungenen
+# Flanken bilden mit der Rumpfunterkante eine weiche Kehle statt einer Kante -
+# so liest sich das Bein als Teil EINER Koerperform. Es wird nur verschoben:
+# dy=0 heisst am Boden, dy=-20 heisst 20 Pixel angehoben.
 function New-Foot($x, $y, $w, $h, $furRole) {
+    $fl = $w * 1.9                     # Breite des ausgestellten Ansatzes
+    $hw = $w / 2.0; $cx = $fl / 2.0
     $c = New-Object System.Windows.Controls.Canvas
-    $c.Width = $w; $c.Height = $h
-    [System.Windows.Controls.Canvas]::SetLeft($c, $x - $w / 2)
+    $c.Width = $fl; $c.Height = $h
+    [System.Windows.Controls.Canvas]::SetLeft($c, $x - $cx)
     [System.Windows.Controls.Canvas]::SetTop($c, $y)
-    $r = New-Object System.Windows.Shapes.Rectangle
-    $r.Width = $w; $r.Height = $h; $r.RadiusX = $w / 2; $r.RadiusY = $w / 2
-    Add-Paint $r $furRole $null
-    [void]$c.Children.Add($r)
+    $d = 'M 0,0 ' +
+         ('C {0},{1} {2},{3} {2},{4} ' -f (Inv ($cx - $hw - 2)), (Inv ($h * 0.30)), (Inv ($cx - $hw)), (Inv ($h * 0.55)), (Inv ($h - $hw))) +
+         ('C {0},{1} {2},{1} {2},{3} ' -f (Inv ($cx - $hw)), (Inv ($h + $hw / 3)), (Inv ($cx + $hw)), (Inv ($h - $hw))) +
+         ('C {0},{1} {2},{3} {4},0 Z' -f (Inv ($cx + $hw)), (Inv ($h * 0.55)), (Inv ($cx + $hw + 2)), (Inv ($h * 0.30)), (Inv $fl))
+    $p = New-Object System.Windows.Shapes.Path
+    $p.Data = [System.Windows.Media.Geometry]::Parse($d)
+    Add-Paint $p $furRole $null
+    [void]$c.Children.Add($p)
     $tr = New-Object System.Windows.Media.TranslateTransform(0, 0)
     $c.RenderTransform = $tr
     @{ el = $c; tr = $tr }
@@ -234,11 +244,11 @@ function New-Foot($x, $y, $w, $h, $furRole) {
 # Feste Farben - bleiben beim Fellwechsel gleich.
 function Add-Accessory($hg, [string]$kind) {
     if ($kind -eq 'bow') {
-        # Schleife am rechten Ohr, in sich symmetrisch um den Knoten (142,90)
+        # Schleife am rechten Ohr, in sich symmetrisch um den Knoten (145,104)
         $pink  = New-Brush '#F3A2C2'
         $pinkD = New-Brush '#CC6E94'
-        $petal = @(@(142,90),@(148.6,85.2),@(149.2,93.8))
-        foreach ($t in @($petal, (Mirror-Pts $petal 142))) {
+        $petal = @(@(145,104),@(151.6,99.2),@(152.2,107.8))
+        foreach ($t in @($petal, (Mirror-Pts $petal 145))) {
             $p = New-Object System.Windows.Shapes.Polygon
             $pc = New-Object System.Windows.Media.PointCollection
             foreach ($q in $t) { $pc.Add([System.Windows.Point]::new($q[0], $q[1])) }
@@ -248,8 +258,8 @@ function Add-Accessory($hg, [string]$kind) {
         }
         $knot = New-Object System.Windows.Shapes.Ellipse
         $knot.Width = 4.8; $knot.Height = 4.8; $knot.Fill = $pinkD
-        [System.Windows.Controls.Canvas]::SetLeft($knot, 139.6)
-        [System.Windows.Controls.Canvas]::SetTop($knot, 87.6)
+        [System.Windows.Controls.Canvas]::SetLeft($knot, 142.6)
+        [System.Windows.Controls.Canvas]::SetTop($knot, 101.6)
         [void]$hg.Children.Add($knot)
     } elseif ($kind -eq 'bell') {
         # Halsband: ein schmaler roter Streifen, der HINTER dem Kinn hervor-
@@ -260,40 +270,40 @@ function Add-Accessory($hg, [string]$kind) {
         $colC = New-Object System.Windows.Controls.Canvas
         $colC.Width = 190; $colC.Height = 190
         $headSil = New-Object System.Windows.Media.EllipseGeometry
-        $headSil.Center = [System.Windows.Point]::new(128, 112)
-        $headSil.RadiusX = 27; $headSil.RadiusY = 27
+        $headSil.Center = [System.Windows.Point]::new(128, 128)
+        $headSil.RadiusX = 28; $headSil.RadiusY = 28
         $colC.Clip = New-Object System.Windows.Media.CombinedGeometry('Exclude',
-                     (New-Object System.Windows.Media.RectangleGeometry([System.Windows.Rect]::new(100, 127, 56, 20))),
+                     (New-Object System.Windows.Media.RectangleGeometry([System.Windows.Rect]::new(99, 143, 58, 22))),
                      $headSil)
         $band = New-Object System.Windows.Shapes.Ellipse
-        $band.Width = 55; $band.Height = 57            # Mitte (128, 114.5)
+        $band.Width = 57; $band.Height = 59            # Mitte (128, 130.5)
         $band.Fill = New-Brush '#CE4A46'
         $band.Stroke = New-Brush '#9E332F'; $band.StrokeThickness = 1.1
-        [System.Windows.Controls.Canvas]::SetLeft($band, 100.5)
-        [System.Windows.Controls.Canvas]::SetTop($band, 86)
+        [System.Windows.Controls.Canvas]::SetLeft($band, 99.5)
+        [System.Windows.Controls.Canvas]::SetTop($band, 101)
         [void]$colC.Children.Add($band)
         # Oese und Gloeckchen baumeln mittig unterm Kinn auf der Brust
         $ring = New-Object System.Windows.Shapes.Ellipse
         $ring.Width = 3.4; $ring.Height = 3.4; $ring.Fill = New-Brush '#8E2B29'
         [System.Windows.Controls.Canvas]::SetLeft($ring, 126.3)
-        [System.Windows.Controls.Canvas]::SetTop($ring, 139.9)
+        [System.Windows.Controls.Canvas]::SetTop($ring, 156.9)
         [void]$colC.Children.Add($ring)
         $bell = New-Object System.Windows.Shapes.Ellipse
         $bell.Width = 7.4; $bell.Height = 7.4
         $bell.Fill = New-VGrad '#F6C74F' 0.35 -0.22
         $bell.Stroke = New-Brush '#B98A21'; $bell.StrokeThickness = 0.7
         [System.Windows.Controls.Canvas]::SetLeft($bell, 124.3)
-        [System.Windows.Controls.Canvas]::SetTop($bell, 141.5)
+        [System.Windows.Controls.Canvas]::SetTop($bell, 158.5)
         [void]$colC.Children.Add($bell)
         $dot = New-Object System.Windows.Shapes.Ellipse
         $dot.Width = 1.7; $dot.Height = 1.7; $dot.Fill = New-Brush '#8E6813'
         [System.Windows.Controls.Canvas]::SetLeft($dot, 127.15)
-        [System.Windows.Controls.Canvas]::SetTop($dot, 143.5)
+        [System.Windows.Controls.Canvas]::SetTop($dot, 160.5)
         [void]$colC.Children.Add($dot)
         $slit = New-Object System.Windows.Shapes.Polyline
         $sp = New-Object System.Windows.Media.PointCollection
-        $sp.Add([System.Windows.Point]::new(125.9, 147))
-        $sp.Add([System.Windows.Point]::new(130.1, 147))
+        $sp.Add([System.Windows.Point]::new(125.9, 164))
+        $sp.Add([System.Windows.Point]::new(130.1, 164))
         $slit.Points = $sp
         $slit.Stroke = New-Brush '#8E6813'; $slit.StrokeThickness = 1.0
         $slit.StrokeStartLineCap = 'Round'; $slit.StrokeEndLineCap = 'Round'
@@ -301,7 +311,7 @@ function Add-Accessory($hg, [string]$kind) {
         $gl = New-Object System.Windows.Shapes.Ellipse
         $gl.Width = 2.2; $gl.Height = 2.2; $gl.Fill = New-Brush '#FFF6DC'; $gl.Opacity = 0.9
         [System.Windows.Controls.Canvas]::SetLeft($gl, 125.3)
-        [System.Windows.Controls.Canvas]::SetTop($gl, 142.3)
+        [System.Windows.Controls.Canvas]::SetTop($gl, 159.3)
         [void]$colC.Children.Add($gl)
         # (keine Schnurrhaare mehr im Weg - einfach hinten anhaengen)
         [void]$hg.Children.Add($colC)
@@ -375,7 +385,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     # --- Schatten am Boden --------------------------------------------------
     $shadow = New-Object System.Windows.Shapes.Ellipse
     $shadow.Width = 100; $shadow.Height = 18
-    [System.Windows.Controls.Canvas]::SetLeft($shadow, 86 - 50)
+    [System.Windows.Controls.Canvas]::SetLeft($shadow, 83 - 50)
     [System.Windows.Controls.Canvas]::SetTop($shadow, 178 - 9)
     $sg = New-Object System.Windows.Media.RadialGradientBrush
     $sg.GradientStops.Add((New-Object System.Windows.Media.GradientStop(([System.Windows.Media.Color]::FromArgb(110,0,0,0)), 0.0)))
@@ -398,30 +408,34 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $tail = New-Object System.Windows.Shapes.Polyline
     $tail.Points = $c.tailPts
     Add-Paint $tail $null 'fur'
-    $tail.StrokeThickness = 13
+    $tail.StrokeThickness = 14
     $tail.StrokeStartLineCap = 'Round'; $tail.StrokeEndLineCap = 'Round'; $tail.StrokeLineJoin = 'Round'
     [void]$flip.Children.Add($tail)
     # die Spitze in Fellfarbe rundet das Schwanzende zusaetzlich ab
-    $c.tailTip = New-Ell 0 0 6.5 6.5 'fur' $null 0
+    $c.tailTip = New-Ell 0 0 7 7 'fur' $null 0
     [void]$flip.Children.Add($c.tailTip)
 
-    # --- Beine: kurze runde Stummel (ferne zuerst, einen Ton dunkler) -------
-    # Ihr oberes Ende sitzt weit im Rumpf, damit es auch beim Anheben
-    # von der Koerperkontur verdeckt bleibt.
-    $c.legBF = New-Foot 66 156 12 26 'stripe';  [void]$flip.Children.Add($c.legBF.el)
-    $c.legFF = New-Foot 100 156 12 26 'stripe'; [void]$flip.Children.Add($c.legFF.el)
+    # --- Beine: kurze Stummel (ferne zuerst, einen Ton dunkler) ------------
+    # Fuss 15-16 breit, Ansatz ~30 breit und im Rumpf verborgen (Rumpfunter-
+    # kante liegt auf 168, der Ansatz beginnt auf 152).
+    $c.legBF = New-Foot 54 152 15 30 'stripe';  [void]$flip.Children.Add($c.legBF.el)
+    $c.legFF = New-Foot 102 152 15 30 'stripe'; [void]$flip.Children.Add($c.legFF.el)
 
-    # --- Rumpf: eine weiche einfarbige Blase ohne Kontur. Weil Rumpf und
-    # Kopf dieselbe flache Farbe haben, verschmelzen sie zu einer Silhouette;
-    # die Brust-Ellipse fuellt die Kehle unter dem Kinn.
+    # --- Rumpf: eine weiche Bohne ohne Kontur. Ruecken ~116, Unterkante 168,
+    # Hinterteil x=34, vorn reicht sie bis unter den Kopf. Gleiche flache
+    # Farbe wie der Kopf - beides verschmilzt zu EINER Silhouette.
     $bodyG = New-Canv
-    [void]$bodyG.Children.Add((New-Ell 86 142 34 24 'fur' $null 0))
-    [void]$bodyG.Children.Add((New-Ell 113 139 13 15 'fur' $null 0))
+    $bean = New-Object System.Windows.Shapes.Path
+    $bean.Data = [System.Windows.Media.Geometry]::Parse('M 34,144 C 34,124 56,116 88,116 C 112,116 130,126 132,146 C 133,160 122,168 98,168 C 66,168 34,166 34,144 Z')
+    Add-Paint $bean 'fur' $null
+    [void]$bodyG.Children.Add($bean)
+    # Brust: fuellt die Kehle zwischen Kinn und Vorderbein
+    [void]$bodyG.Children.Add((New-Ell 122 152 12 12 'fur' $null 0))
 
     $c.bodyRot = New-Object System.Windows.Media.RotateTransform(0)
     $c.bodyRot.CenterX = $BCX; $c.bodyRot.CenterY = $BCY
     $c.bodyScl = New-Object System.Windows.Media.ScaleTransform(1, 1)
-    $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = 166      # Rumpfunterkante
+    $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = 168      # Rumpfunterkante
     # kippt den Rumpf um seine eigene Mitte (Bauch nach oben) fuers Waelzen
     $c.bodyFlip = New-Object System.Windows.Media.ScaleTransform(1, 1)
     $c.bodyFlip.CenterX = $BCX; $c.bodyFlip.CenterY = $BCY
@@ -432,10 +446,11 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $bodyG.RenderTransform = $btg
     [void]$flip.Children.Add($bodyG)
 
-    $c.legBN = New-Foot 74 156 13 26 'fur';  [void]$flip.Children.Add($c.legBN.el)
-    $c.legFN = New-Foot 108 156 13 26 'fur'; [void]$flip.Children.Add($c.legFN.el)
+    $c.legBN = New-Foot 62 152 16 30 'fur';  [void]$flip.Children.Add($c.legBN.el)
+    $c.legFN = New-Foot 110 152 16 30 'fur'; [void]$flip.Children.Add($c.legFN.el)
 
-    # --- Kopf --------------------------------------------------------------
+    # --- Kopf: tief in den Rumpf eingebettet, Oberkante nur knapp ueber dem
+    # Ruecken - kein Hals, wie beim Sticker. Kreis um (128,128), r=28.
     $headG = New-Canv
 
     # ---- Gesicht: alles spiegelsymmetrisch zur Achse $FX ------------------
@@ -445,25 +460,25 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
 
     # kleine Oehrchen: Dreiecke mit dicker runder Kontur in Fellfarbe -
     # das rundet die Spitzen weich ab, ohne eine sichtbare Linie zu erzeugen
-    $earRp = @(@(138.1,87),@(151.4,98.5),@(149,74))
+    $earRp = @(@(137.6,101.7),@(152.7,114.9),@(151,86))
     $earR  = New-Poly $earRp 'fur' 'fur' 5
     $earR.StrokeLineJoin = 'Round'
     $earL  = New-Poly (Mirror-Pts $earRp $FX) 'fur' 'fur' 5
     $earL.StrokeLineJoin = 'Round'
     $c.earFrot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.earFrot.CenterX = 2 * $FX - 145; $c.earFrot.CenterY = 93
+    $c.earFrot.CenterX = 2 * $FX - 145; $c.earFrot.CenterY = 108
     $c.earNrot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.earNrot.CenterX = 145; $c.earNrot.CenterY = 93
+    $c.earNrot.CenterX = 145; $c.earNrot.CenterY = 108
     $earL.RenderTransform = $c.earFrot
     $earR.RenderTransform = $c.earNrot
     [void]$headG.Children.Add($earL); [void]$headG.Children.Add($earR)
 
-    # grosser runder Kopf - gleiche Farbe wie der Rumpf, keine Kontur
-    [void]$headG.Children.Add((New-Ell $FX 112 27 27 'fur' $null 0))
+    # runder Kopf - gleiche Farbe wie der Rumpf, keine Kontur
+    [void]$headG.Children.Add((New-Ell $FX 128 28 28 'fur' $null 0))
 
     # zarte Wangenroete
-    foreach ($bx in @(($FX - 11.5), ($FX + 11.5))) {
-        $bl = New-Ell $bx 118.5 4.2 2.6 'inner' $null 0
+    foreach ($bx in @(($FX - 13), ($FX + 13))) {
+        $bl = New-Ell $bx 134.5 4.2 2.6 'inner' $null 0
         $bl.Opacity = 0.35
         [void]$headG.Children.Add($bl)
     }
@@ -471,31 +486,31 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     # Maul (offen): kleines warm-rosa Oval mit Zunge, klappt unter der
     # Lippenlinie auf - bleibt auch weit offen niedlich
     $mouthG = New-Canv
-    $mo = New-Ell $FX 123.6 3.4 4.0 $null $null 0
+    $mo = New-Ell $FX 139.6 3.4 4.0 $null $null 0
     $mo.Fill = New-Brush '#A3555C'
     $mo.Stroke = New-Brush '#7A3A42'; $mo.StrokeThickness = 0.9
     [void]$mouthG.Children.Add($mo)
-    $tng = New-Ell $FX 125.9 2.2 1.9 $null $null 0
+    $tng = New-Ell $FX 141.9 2.2 1.9 $null $null 0
     $tng.Fill = New-Brush '#EF9BA4'
     [void]$mouthG.Children.Add($tng)
     $c.mouthScl = New-Object System.Windows.Media.ScaleTransform(1, 0)
-    $c.mouthScl.CenterX = $FX; $c.mouthScl.CenterY = 119.6
+    $c.mouthScl.CenterX = $FX; $c.mouthScl.CenterY = 135.6
     $mouthG.RenderTransform = $c.mouthScl
     [void]$headG.Children.Add($mouthG)
 
     # zwei Punktaugen, dicht beieinander
-    $c.eyeF = New-Eye ($FX - 7.5) 113.5 2.5; [void]$headG.Children.Add($c.eyeF.el)
-    $c.eyeN = New-Eye ($FX + 7.5) 113.5 2.5; [void]$headG.Children.Add($c.eyeN.el)
+    $c.eyeF = New-Eye ($FX - 8) 129.5 2.6; [void]$headG.Children.Add($c.eyeF.el)
+    $c.eyeN = New-Eye ($FX + 8) 129.5 2.6; [void]$headG.Children.Add($c.eyeN.el)
 
     # geschlossene Augen: kleine zufriedene Boegen
-    $lidRp = @(@(($FX + 4),113.5), @(($FX + 7.5),115.8), @(($FX + 11),113.5))
+    $lidRp = @(@(($FX + 4.5),129.5), @(($FX + 8),131.8), @(($FX + 11.5),129.5))
     $c.lidN = New-Line $lidRp 'edge' 1.6
     $c.lidF = New-Line (Mirror-Pts $lidRp $FX) 'edge' 1.6
     $c.lidF.Opacity = 0; $c.lidN.Opacity = 0
     [void]$headG.Children.Add($c.lidF); [void]$headG.Children.Add($c.lidN)
 
     # "w"-Maeulchen: zwei kleine Boegen, keine Nase, keine Schnurrhaare
-    $lipRp = @(@($FX,119.4), @(($FX + 2.6),121.8), @(($FX + 5.2),119.6))
+    $lipRp = @(@($FX,135.4), @(($FX + 2.6),137.8), @(($FX + 5.2),135.6))
     $c.lipN = New-Line $lipRp 'edge' 1.5
     $c.lipF = New-Line (Mirror-Pts $lipRp $FX) 'edge' 1.5
     [void]$headG.Children.Add($c.lipF); [void]$headG.Children.Add($c.lipN)
@@ -504,14 +519,23 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
 
     # optionale Kopf-Skalierung (Babykatzen bekommen einen noch groesseren Kopf)
     $headScl = New-Object System.Windows.Media.ScaleTransform($headK, $headK)
-    $headScl.CenterX = $FX; $headScl.CenterY = 112
+    $headScl.CenterX = $FX; $headScl.CenterY = 128
     $c.headRot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.headRot.CenterX = 116; $c.headRot.CenterY = 130
+    $c.headRot.CenterX = 112; $c.headRot.CenterY = 142
     $c.headTr = New-Object System.Windows.Media.TranslateTransform(0, 0)
     $htg = New-Object System.Windows.Media.TransformGroup
     $htg.Children.Add($headScl); $htg.Children.Add($c.headRot); $htg.Children.Add($c.headTr)
     $headG.RenderTransform = $htg
     [void]$flip.Children.Add($headG)
+
+    # --- weicher Sticker-Schatten um die ganze Silhouette (nur mit
+    # Hardware-Rendering, sonst kostet der Weichzeichner zu viel CPU)
+    if (([System.Windows.Media.RenderCapability]::Tier -shr 16) -ge 2) {
+        $fx = New-Object System.Windows.Media.Effects.DropShadowEffect
+        $fx.BlurRadius = 7; $fx.ShadowDepth = 2; $fx.Direction = 270; $fx.Opacity = 0.22
+        $fx.Color = [System.Windows.Media.Colors]::Black
+        $flip.Effect = $fx
+    }
 
     # --- Fallschirm: rosa Kuppel mit Leinen, nur sichtbar beim Fall aus
     # grosser Hoehe (Set-Chute). Pendelt um den Aufhaengepunkt (95,126).
@@ -656,9 +680,9 @@ function NewPose([hashtable]$over) { PoseFrom $DEFAULT_POSE $over }
 
 # aufrecht sitzend: Hinterteil sinkt ab, Vorderpfoetchen stehen am Boden,
 # Hinterpfoetchen sind untergeschoben und schauen nur ein Stueck heraus
-# bdy=13, damit das Hinterteil wirklich am Boden sitzt: der gedrehte Rumpf
-# reicht 27 Pixel unter seine Mitte, die Mitte liegt auf 142, der Boden auf 182.
-$SIT = NewPose @{ bdy=13; brot=-30; pFNx=9; pFFx=7; pBNy=-2; pBFy=-1;
+# bdy=-4, damit das Hinterteil gerade am Boden sitzt: die gedrehte Bohne
+# reicht ~45 Pixel unter ihre Mitte, die Mitte liegt auf 142, der Boden auf 182.
+$SIT = NewPose @{ bdy=-4; brot=-30; pFNx=9; pFFx=7; pBNy=-2; pBFy=-1;
                   hdx=-5; hdy=-5; hrot=25; tailA=6; tailC=0.95 }
 
 $POSES = @{
@@ -668,65 +692,65 @@ $POSES = @{
     sit    = $SIT
     # Sphinx-Loaf: flach und waagerecht, alle Pfoetchen untergeschoben
     # (nur so weit angehoben, dass die Beinsaeulen nicht oben aus dem Ruecken ragen)
-    sleep  = NewPose @{ bdy=16; bsx=1.14; bsy=0.88;
+    sleep  = NewPose @{ bdy=14; bsx=1.14; bsy=0.88;
                         pFNx=3; pFNy=-11; pFFx=2; pFFy=-10; pBNy=-11; pBFy=-10;
-                        hdx=2; hdy=28; hrot=0; tailA=-16; tailC=-0.25; eye=0.05; ear=-6 }
+                        hdx=2; hdy=12; hrot=0; tailA=-16; tailC=-0.25; eye=0.05; ear=-6 }
     # zusammengerollt: runder Rumpf, Nase tief eingezogen
-    curl   = NewPose @{ bdy=15; bsx=0.96; bsy=1.02;
+    curl   = NewPose @{ bdy=14; bsx=0.96; bsy=1.02;
                         pFNy=-19; pFFy=-18; pBNy=-19; pBFy=-18;
-                        hdx=-14; hdy=23; hrot=38; tailA=-14; tailC=-0.55; eye=0.05; ear=-10 }
+                        hdx=-10; hdy=8; hrot=38; tailA=-14; tailC=-0.55; eye=0.05; ear=-10 }
     # putzt sich: Vorderpfoetchen zum Maul angehoben
-    groom  = PoseFrom $SIT @{ pFNx=14; pFNy=-26; hdx=-8; hdy=7; hrot=44; tailA=10; tailC=0.9; eye=0.25 }
+    groom  = PoseFrom $SIT @{ pFNx=14; pFNy=-26; hdx=-8; hdy=4; hrot=44; tailA=10; tailC=0.9; eye=0.25 }
     stretch= NewPose @{ bdy=6; brot=13; bsx=1.18; pFNx=-7; pFFx=-6; pBNx=5; pBFx=4;
-                        hdy=9; hrot=15; tailA=74; tailC=0.2; eye=0.3 }
+                        hdy=6; hrot=15; tailA=74; tailC=0.2; eye=0.3 }
     crouch = NewPose @{ bdy=14; bsy=0.84; bsx=1.05; pFNy=-5; pFFy=-4; pBNy=-5; pBFy=-4;
-                        hdy=10; hrot=4; tailA=-8; tailC=0.1; ear=-7 }
+                        hdy=6; hrot=4; tailA=-8; tailC=0.1; ear=-7 }
     leap   = NewPose @{ bsy=1.06; bsx=1.08; brot=-9;
                         pFNx=9; pFNy=-18; pFFx=8; pFFy=-16; pBNx=-9; pBNy=-12; pBFx=-8; pBFy=-11;
                         tailA=58; tailC=-0.3 }
-    land   = NewPose @{ bdy=16; bsy=0.74; bsx=1.16;
+    land   = NewPose @{ bdy=14; bsy=0.74; bsx=1.16;
                         pFNx=6; pFNy=-2; pFFx=5; pFFy=-2; pBNx=-6; pBNy=-2; pBFx=-5; pBFy=-2;
-                        hdy=8; tailA=34; tailC=0.3; ear=-4 }
+                        hdy=5; tailA=34; tailC=0.3; ear=-4 }
     fall   = NewPose @{ bsy=0.96; pFNx=7; pFNy=-15; pFFx=6; pFFy=-13;
                         pBNx=-7; pBNy=-15; pBFx=-6; pBFy=-13; tailA=82; tailC=-0.5; ear=-6 }
     drag   = NewPose @{ brot=8; pFNx=3; pFNy=-8; pFFx=2; pFFy=-7; pBNx=-3; pBNy=-8; pBFx=-2; pBFy=-7;
                         tailA=100; tailC=-0.4; ear=-11 }
     pet    = PoseFrom $SIT @{ hdx=-2; hdy=-9; hrot=20; tailA=86; tailC=0.26; eye=0.08; ear=5 }
-    chase  = NewPose @{ bdy=6; bsy=0.92; hdy=5; tailA=-4; tailC=0.15; ear=-5 }
+    chase  = NewPose @{ bdy=6; bsy=0.92; hdy=3; tailA=-4; tailC=0.15; ear=-5 }
     yawn   = PoseFrom $SIT @{ hdx=-7; hdy=-11; hrot=4; tailA=12; tailC=0.9; eye=0.06; mouth=1.0; ear=-3 }
     meow   = PoseFrom $SIT @{ hdx=-6; hdy=-8; hrot=12; tailA=20; tailC=0.85; mouth=0.7 }
     watch  = PoseFrom $SIT @{ hdx=-4; hdy=-8; hrot=14; tailA=30; tailC=0.8; ear=3 }
     # kratzt sich mit dem Hinterpfoetchen hinterm Ohr
     scratch= PoseFrom $SIT @{ pBNx=26; pBNy=-42; hdx=-13; hdy=2; hrot=28; tailA=2; eye=0.35; ear=8 }
     # waelzt sich auf dem Ruecken: Rumpf gekippt, alle vier Pfoetchen in der Luft
-    roll   = NewPose @{ bdy=20; bsx=1.12; bsy=0.86; bflip=-1;
+    roll   = NewPose @{ bdy=14; bsx=1.12; bsy=0.86; bflip=-1;
                         pFNx=4; pFNy=-34; pFFx=2; pFFy=-30; pBNx=-4; pBNy=-34; pBFx=-2; pBFy=-30;
-                        hdx=-2; hdy=22; hrot=-26; eye=0.25; mouth=0.25; ear=-8; tailA=-24; tailC=0.35 }
+                        hdx=-2; hdy=10; hrot=-26; eye=0.25; mouth=0.25; ear=-8; tailA=-24; tailC=0.35 }
     # steht am Bildschirmrand auf den Hinterbeinen und kratzt
-    edge   = NewPose @{ brot=-52; pBNx=-4; pFNx=8; pFNy=-48; pFFx=6; pFFy=-42;
+    edge   = NewPose @{ bdy=-10; brot=-52; pBNx=-4; pFNx=8; pFNy=-48; pFFx=6; pFFy=-42;
                         hdx=-24; hdy=-4; hrot=-8; tailA=-58; tailC=0.25; ear=-2 }
     # --- weitere Aktionen ---
     # winkt sitzend mit dem Vorderpfoetchen
     wave   = PoseFrom $SIT @{ pFNx=15; pFNy=-34; hdx=-3; hrot=18; tailA=20; tailC=0.8; ear=4 }
     # schnuppert im Schneckentempo am Boden
-    sniff  = NewPose @{ bdy=10; bsy=0.96; pFNy=-2; pBNy=-2; hdx=6; hdy=20; hrot=40; ear=5;
+    sniff  = NewPose @{ bdy=10; bsy=0.96; pFNy=-2; pBNy=-2; hdx=6; hdy=12; hrot=40; ear=5;
                         tailA=30; tailC=0.4 }
     # Katzenbuckel: Ruecken hoch, Schwanz senkrecht
     arch   = NewPose @{ bdy=-5; bsy=1.18; bsx=0.93; pFNx=-4; pFFx=-3; pBNx=4; pBFx=3;
-                        hdx=-2; hdy=8; hrot=22; tailA=98; tailC=-0.12; ear=-6; eye=0.55 }
+                        hdx=-2; hdy=5; hrot=22; tailA=98; tailC=-0.12; ear=-6; eye=0.55 }
     # schuettelt sich (nach dem Aufwachen oder nach dem Hochheben)
     shake  = NewPose @{ bdy=2; eye=0.25; ear=-4; tailA=40; tailC=0.3 }
     # scharrt mit den Vorderpfoetchen am Boden
-    dig    = NewPose @{ bdy=9; bsy=0.94; pBNy=-4; pBFy=-3; hdy=8; hrot=20;
+    dig    = NewPose @{ bdy=9; bsy=0.94; pBNy=-4; pBFy=-3; hdy=5; hrot=20;
                         tailA=20; tailC=0.2; ear=2 }
     # macht Maennchen und bettelt
-    beg    = NewPose @{ brot=-52; pBNx=-4; pFNx=9; pFNy=-42; pFFx=7; pFFy=-37;
+    beg    = NewPose @{ bdy=-10; brot=-52; pBNx=-4; pFNx=9; pFNy=-42; pFFx=7; pFFy=-37;
                         hdx=-24; hdy=-6; hrot=-4; tailA=-58; tailC=0.3; ear=6 }
     # schmiegt sich an die Freundin
     rub    = NewPose @{ bdy=2; hdx=-2; hrot=-8; tailA=104; tailC=0.2; ear=5; eye=0.45 }
     # schlaegt nach dem Wollknaeuel
     bat    = NewPose @{ bdy=10; bsy=0.90; pFNx=12; pFNy=-8; pBNy=-4; pBFy=-3;
-                        hdy=6; hrot=10; tailA=30; tailC=0.4; ear=-3 }
+                        hdy=4; hrot=10; tailA=30; tailC=0.4; ear=-3 }
     # Naeschen aneinander: Hals vorgestreckt, Ohren nach vorn, Schwanz hoch
     greet  = NewPose @{ bdy=1; hdx=9; hdy=3; hrot=7; tailA=92; tailC=0.28; ear=6 }
 }
@@ -1719,7 +1743,7 @@ function Set-Tail($c, $ox, $oy, $a, $curl) {
     $ar = $a * [Math]::PI / 180.0
     $a2 = ($a + 55 * $curl) * [Math]::PI / 180.0
     $a3 = ($a + 112 * $curl) * [Math]::PI / 180.0
-    $p0x = 57 + $ox; $p0y = 131 + $oy
+    $p0x = 48 + $ox; $p0y = 126 + $oy
     $p1x = $p0x - 20 * [Math]::Cos($ar);  $p1y = $p0y - 20 * [Math]::Sin($ar)
     $p2x = $p1x - 18 * [Math]::Cos($a2);  $p2y = $p1y - 18 * [Math]::Sin($a2)
     $p3x = $p2x - 15 * [Math]::Cos($a3);  $p3y = $p2y - 15 * [Math]::Sin($a3)
