@@ -155,6 +155,7 @@ $G = @{
     toyT = 45.0; flyT = 85.0
     soc = @{ mode = 'none'; t = 0.0; cool = 60.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
     hkT = 1.0                     # Zaehler fuer die Wartungsroutine
+    dt = 0.024                    # letzte Frame-Dauer (fuer Apply-Pose)
     hidden = $false               # versteckt, weil eine Vollbild-App laeuft
     away = $false                 # niemand am Rechner -> Katzen doesen
     errLog = (Join-Path $env:TEMP 'desktop-katze-fehler.log')
@@ -396,6 +397,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         locked = $false; meetX = 0.0
         kit = $false; target = $null; chuteOn = $false; headK = $headK
         rel = 1.0; gripDX = 0.0; gripDY = 0.0
+        svx = 0.0; fvis = 1.0; earT = (Rnd 2 6); earFlick = 0.0
         pose = $null; base = $null
     }
     foreach ($k in 'fur','furG','stripe','cream','creamG','inner','nose','eye','eyeG','edge','dark','white') {
@@ -1275,10 +1277,14 @@ function Update-Behaviour($c, $dt) {
     }
     if ($c.blink -gt 0) { $c.blink -= $dt }
     if ($c.swipe -gt 0) { $c.swipe -= $dt }
+    # Ohrenzucken alle paar Sekunden
+    $c.earT -= $dt
+    if ($c.earT -le 0) { $c.earT = Rnd 3 9; $c.earFlick = 0.3 }
+    if ($c.earFlick -gt 0) { $c.earFlick -= $dt }
 
     switch ($c.state) {
-        'walk'  { $c.vx = 64 * $c.facing * $c.pxs; $c.phase += $dt * 7.6 }
-        'run'   { $c.vx = 205 * $c.facing * $c.pxs; $c.phase += $dt * 15.5 }
+        'walk'  { $c.vx = 64 * $c.facing * $c.pxs; $c.phase += $dt * 7.6 * (Gait-Factor $c) }
+        'run'   { $c.vx = 205 * $c.facing * $c.pxs; $c.phase += $dt * 15.5 * (Gait-Factor $c) }
         'crouch' { $c.vx = 0 }
         'chase' {
             $cur = [System.Windows.Forms.Cursor]::Position
@@ -1531,10 +1537,13 @@ function Update-Behaviour($c, $dt) {
     }
 }
 
+# Schrittzyklus folgt der tatsaechlich angewandten Geschwindigkeit (weiches Anfahren)
+function Gait-Factor($c) { [Math]::Min(1.0, [Math]::Abs($c.svx) / [Math]::Max(1.0, [Math]::Abs($c.vx))) }
+
 function Update-Physics($c, $dt) {
     if ($c.state -eq 'drag') {
         $cur = [System.Windows.Forms.Cursor]::Position
-        $c.x = [double]$cur.X + $c.gripDX
+        $c.x = [double]$cur.X + $c.gripDX; $c.svx = 0
         $scr = Get-ScreenAt $cur.X $cur.Y
         $c.screen = $scr
         $c.groundY = [double]$scr.WorkingArea.Bottom
@@ -1554,10 +1563,12 @@ function Update-Physics($c, $dt) {
             $c.chuteRot.Angle = 7 * [Math]::Sin($c.t * 1.7)
         }
         $c.y += $c.vy * $dt
-        $c.x += $c.vx * $dt
+        $c.x += $c.vx * $dt; $c.svx = $c.vx
         if ($c.y -le 0) { Do-Land $c }
     } else {
-        $c.x += $c.vx * $dt
+        # weich anfahren und abbremsen: die angewandte Geschwindigkeit folgt der Soll-Geschwindigkeit
+        $c.svx += ($c.vx - $c.svx) * [Math]::Min(1.0, $dt * 7)
+        $c.x += $c.svx * $dt
         if ($c.y -gt 0.5) { Set-State $c 'fall' 5; $c.vy = 0 }
     }
 
@@ -1782,7 +1793,7 @@ function Set-Tail($c, $ox, $oy, $a, $curl) {
 }
 
 function Get-AppliedPose($c, $dt) {
-    $k = [Math]::Min(1.0, $dt * 11.0)
+    $k = [Math]::Min(1.0, $dt * 9.0)      # weiche Ueberblendung zwischen Posen
     foreach ($key in $POSE_KEYS) {
         $c.pose[$key] = $c.pose[$key] + ($c.base[$key] - $c.pose[$key]) * $k
     }
@@ -2026,6 +2037,12 @@ function Get-AppliedPose($c, $dt) {
         }
     }
 
+    # Atmen: alle wachen Posen heben und senken sich ganz leicht (Schlafposen
+    # haben ihr eigenes, tieferes Atmen)
+    if (@('sleep','curl') -notcontains $st) { $a.bsy += 0.012 * [Math]::Sin($t * 1.6) }
+    # gelegentliches Ohrenzucken (Zeitgeber in Update-Behaviour)
+    if ($c.earFlick -gt 0) { $a.ear += 14 * [Math]::Sin($c.earFlick / 0.3 * [Math]::PI) }
+
     # Blinzeln geht weich zu und wieder auf; langsames Blinzeln = Zuneigung
     if ($c.blink -gt 0) {
         $bp = 1 - ($c.blink / [Math]::Max(0.05, $c.blinkDur))
@@ -2066,7 +2083,10 @@ function Apply-Pose($c, $a) {
     # Schwanz liegt im Rumpf-Verband, bekommt die Verschiebung also schon dort
     Set-Tail $c 0 0 $a.tailA $a.tailC
 
-    $c.flipScale.ScaleX = $c.facing
+    # Umdrehen als kurze Animation: die Spiegelung laeuft weich von +1 nach -1
+    $c.fvis += ($c.facing - $c.fvis) * [Math]::Min(1.0, $G.dt * 12)
+    if ([Math]::Abs($c.fvis - $c.facing) -lt 0.02) { $c.fvis = $c.facing }
+    $c.flipScale.ScaleX = $c.fvis
 
     $h = [Math]::Max(0, $c.y / $c.size)
     $c.shadowScale.ScaleX = 1.0 / (1 + $h / 55)
@@ -2509,7 +2529,7 @@ if ($Pose) {
 if ($Fast) { $G.soc.cool = 4.0; $G.toyT = 28.0; $G.flyT = 48.0 }
 
 $timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromMilliseconds(32)
+$timer.Interval = [TimeSpan]::FromMilliseconds(24)     # ~40 fps
 $timer.Add_Tick({
     # Alles in try/catch: ein Fehler hier wuerde sonst lautlos verschluckt und
     # die Katzen blieben einfach stehen, ohne Spur im Log.
@@ -2519,6 +2539,7 @@ $timer.Add_Tick({
         $G.last = $now
         if ($dt -le 0) { return }
         if ($dt -gt 0.1) { $dt = 0.1 }
+        $G.dt = $dt
 
         Update-Housekeeping $dt
         if ($G.hidden) { return }      # Vollbild-App: nichts rechnen, nichts zeichnen
