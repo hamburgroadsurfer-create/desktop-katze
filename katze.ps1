@@ -397,7 +397,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         locked = $false; meetX = 0.0
         kit = $false; target = $null; chuteOn = $false; headK = $headK
         rel = 1.0; gripDX = 0.0; gripDY = 0.0
-        svx = 0.0; fvis = 1.0; earT = (Rnd 2 6); earFlick = 0.0
+        svx = 0.0; fvis = 1.0; earT = (Rnd 2 6); earFlick = 0.0; hopN = 0
         pose = $null; base = $null
     }
     foreach ($k in 'fur','furG','stripe','cream','creamG','inner','nose','eye','eyeG','edge','dark','white') {
@@ -1115,6 +1115,8 @@ function Set-State($c, [string]$name, [double]$dur) {
     $c.state = $name
     $c.stateT = 0.0
     $c.stateDur = $dur
+    if ($name -eq 'dig') { $c.digT = 0.0 }      # Scharr-Timer frisch starten
+    if ($name -eq 'hop') { $c.hopN = 0 }        # Landungszaehler frisch starten
     $pn = $name
     if ($POSE_ALIAS.ContainsKey($name)) { $pn = $POSE_ALIAS[$name] }
     if ($POSES.ContainsKey($pn)) { $c.base = $POSES[$pn] }
@@ -1241,7 +1243,8 @@ function Next-State($c) {
 
     # Mauszeiger in der Naehe: winken, betteln, Kopf schief legen, Katzenkuss oder Koepfchen geben
     $cp = [System.Windows.Forms.Cursor]::Position
-    if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.2) {
+    if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.2 -and
+        (Get-ScreenAt $cp.X $cp.Y).DeviceName -eq $c.screen.DeviceName) {
         if ($cp.X -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
         $rc = Rnd 0 1
         if     ($rc -lt 0.22) { Set-State $c 'wave'  (Rnd 3 5) }
@@ -1285,7 +1288,7 @@ function Set-Chute($c, [bool]$on) {
 
 function Do-Land($c) {
     Set-Chute $c $false
-    $c.y = 0; $c.vy = 0; $c.vx = 0
+    $c.y = 0; $c.vy = 0; $c.vx = 0; $c.svx = 0     # kein Nachrutschen nach der Landung
     Set-State $c 'land' 0.34
     Add-Particle $c 'dust' ($CAT_CX - 16) ($GROUND - 12)
     Add-Particle $c 'dust' ($CAT_CX + 12) ($GROUND - 8)
@@ -1433,8 +1436,8 @@ function Update-Behaviour($c, $dt) {
             $c.vx = 0
             $hp = 0.72
             if ($c.stateT -gt 0.5 -and (($c.stateT % $hp) -lt (($c.stateT - $dt) % $hp))) {
-                $c.digT += 1
-                if (($c.digT % 2) -eq 0) {
+                $c.hopN += 1
+                if (($c.hopN % 2) -eq 0) {
                     Add-Particle $c 'dust' ($CAT_CX - 14) ($GROUND - 8)
                     Add-Particle $c 'dust' ($CAT_CX + 14) ($GROUND - 8)
                 }
@@ -1446,7 +1449,7 @@ function Update-Behaviour($c, $dt) {
             # Stirn anstupsen; ist der Zeiger weit weg oder niemand da, hinsetzen
             $cur = [System.Windows.Forms.Cursor]::Position
             $dxc = $cur.X - $c.x
-            if ($G.away -or $c.locked -or [Math]::Abs($dxc) -gt 420 * $c.pxs) { $c.vx = 0; Set-State $c 'sit' (Rnd 2 4) }
+            if ($G.away -or $c.locked -or [Math]::Abs($dxc) -gt 420 * $c.pxs -or (Get-ScreenAt $cur.X $cur.Y).DeviceName -ne $c.screen.DeviceName) { $c.vx = 0; Set-State $c 'sit' (Rnd 2 4) }
             else {
                 if ([Math]::Abs($dxc) -gt 12) { if ($dxc -ge 0) { $c.facing = 1.0 } else { $c.facing = -1.0 } }
                 if ([Math]::Abs($dxc) -gt 58 * $c.pxs) {
@@ -2095,7 +2098,7 @@ function Get-AppliedPose($c, $dt) {
             # Boden), Kopf folgt traege dem Mauszeiger, Schwanzspitze zuckt
             $br2 = [Math]::Sin($t * 1.6)
             $a.bsy  += 0.02 * $br2
-            $a.bdy  -= 0.42 * $br2
+            $a.bdy  += 0.672 * $br2      # = 21 * (0.02 + 0.012): gleicht Loaf- und Allgemein-Atmen aus, Bauch bleibt am Boden
             $a.hrot += $c.look * 0.5 + 1.5 * [Math]::Sin($t * 0.6)
             $a.hdy  += $c.lookY * 0.5 + 0.4 * $br2
             $a.hdx  += 1.0 * [Math]::Sin($t * 0.45)
