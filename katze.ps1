@@ -563,16 +563,32 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         $flip.Effect = $shadowFx
     }
 
-    # --- Fallschirm: rosa Kuppel mit Leinen, nur sichtbar beim Fall aus
-    # grosser Hoehe (Set-Chute). Pendelt um den Aufhaengepunkt (95,126).
-    $chuteG = New-Canv
+    # --- Fallschirm: rosa Kuppel, drei Leinen laufen in einem Gurt-Ring auf
+    # dem Ruecken (84,121) zusammen; der Schirm pendelt um diesen Ring. Das
+    # Geschirr (Band + Ring) haengt im Rumpf-Verband und bewegt sich mit dem
+    # Koerper. Nur sichtbar beim Fall aus grosser Hoehe (Set-Chute).
     $chuteCol  = New-Brush '#F3A2C2'
     $chuteEdge = New-Brush '#CC6E94'
-    foreach ($s in @(@(55,42,72,124), @(95,46,95,118), @(135,42,118,124))) {
+    $harness = New-Canv
+    $strap = New-Object System.Windows.Shapes.Polyline
+    $hsp = New-Object System.Windows.Media.PointCollection
+    foreach ($q in @(@(66,127),@(75,122.5),@(84,120.5),@(93,122),@(102,127))) { $hsp.Add([System.Windows.Point]::new($q[0], $q[1])) }
+    $strap.Points = $hsp
+    $strap.Stroke = $chuteEdge; $strap.StrokeThickness = 3.6
+    $strap.StrokeStartLineCap = 'Round'; $strap.StrokeEndLineCap = 'Round'; $strap.StrokeLineJoin = 'Round'
+    [void]$harness.Children.Add($strap)
+    [void]$harness.Children.Add((New-Oval 84 121 3.4 3.4 0 $chuteCol $chuteEdge 1.2))
+    $harness.Visibility = 'Collapsed'
+    $harness.IsHitTestVisible = $false
+    $c.harness = $harness
+    [void]$bodyC.Children.Add($harness)
+
+    $chuteG = New-Canv
+    foreach ($s in @(@(44,42), @(84,46), @(124,42))) {
         $ln = New-Object System.Windows.Shapes.Polyline
         $lp2 = New-Object System.Windows.Media.PointCollection
         $lp2.Add([System.Windows.Point]::new($s[0], $s[1]))
-        $lp2.Add([System.Windows.Point]::new($s[2], $s[3]))
+        $lp2.Add([System.Windows.Point]::new(84, 121))
         $ln.Points = $lp2
         $ln.Stroke = $chuteEdge; $ln.StrokeThickness = 1.4
         $ln.StrokeStartLineCap = 'Round'; $ln.StrokeEndLineCap = 'Round'
@@ -582,13 +598,13 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $dome.Width = $CW; $dome.Height = $CH
     # Zuschnitt: Kuppelform = Ellipse, unten glatt abgeschnitten
     $domeEll = New-Object System.Windows.Media.EllipseGeometry
-    $domeEll.Center = [System.Windows.Point]::new(95, 34)
+    $domeEll.Center = [System.Windows.Point]::new(84, 34)
     $domeEll.RadiusX = 46; $domeEll.RadiusY = 27
     $dome.Clip = New-Object System.Windows.Media.CombinedGeometry('Intersect', $domeEll,
-                 (New-Object System.Windows.Media.RectangleGeometry([System.Windows.Rect]::new(47, 5, 96, 37))))
-    [void]$dome.Children.Add((New-Oval 95 34 46 27 0 $chuteCol $chuteEdge 2.6))
-    [void]$dome.Children.Add((New-Oval 95 34 15 27 0 (New-Brush '#FFF6FA') $null 0))
-    foreach ($bx in @(65, 125)) {
+                 (New-Object System.Windows.Media.RectangleGeometry([System.Windows.Rect]::new(36, 5, 96, 37))))
+    [void]$dome.Children.Add((New-Oval 84 34 46 27 0 $chuteCol $chuteEdge 2.6))
+    [void]$dome.Children.Add((New-Oval 84 34 15 27 0 (New-Brush '#FFF6FA') $null 0))
+    foreach ($bx in @(54, 114)) {
         $bl = New-Oval $bx 34 12 26.5 0 $null $chuteEdge 1.0
         $bl.Opacity = 0.55
         [void]$dome.Children.Add($bl)
@@ -596,7 +612,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     [void]$chuteG.Children.Add($dome)
     $hem = New-Object System.Windows.Shapes.Polyline
     $hp = New-Object System.Windows.Media.PointCollection
-    foreach ($q in @(@(50,40),@(72,44.5),@(95,45.8),@(118,44.5),@(140,40))) {
+    foreach ($q in @(@(39,40),@(61,44.5),@(84,45.8),@(107,44.5),@(129,40))) {
         $hp.Add([System.Windows.Point]::new($q[0], $q[1]))
     }
     $hem.Points = $hp
@@ -604,7 +620,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $hem.StrokeStartLineCap = 'Round'; $hem.StrokeEndLineCap = 'Round'
     [void]$chuteG.Children.Add($hem)
     $c.chuteRot = New-Object System.Windows.Media.RotateTransform(0)
-    $c.chuteRot.CenterX = 95; $c.chuteRot.CenterY = 126
+    $c.chuteRot.CenterX = 84; $c.chuteRot.CenterY = 121
     $chuteG.RenderTransform = $c.chuteRot
     $chuteG.Visibility = 'Collapsed'
     $chuteG.IsHitTestVisible = $false
@@ -1282,8 +1298,8 @@ function Next-State($c) {
 function Set-Chute($c, [bool]$on) {
     if ($c.chuteOn -eq $on) { return }
     $c.chuteOn = $on
-    if ($on) { $c.chuteG.Visibility = 'Visible' }
-    else { $c.chuteG.Visibility = 'Collapsed'; $c.chuteRot.Angle = 0 }
+    if ($on) { $c.chuteG.Visibility = 'Visible'; $c.harness.Visibility = 'Visible' }
+    else { $c.chuteG.Visibility = 'Collapsed'; $c.harness.Visibility = 'Collapsed'; $c.chuteRot.Angle = 0 }
 }
 
 function Do-Land($c) {
@@ -2016,7 +2032,7 @@ function Get-AppliedPose($c, $dt) {
             $a.tailA += 14 * [Math]::Sin($t * 2.4)
         }
         'fall' {
-            $a.brot += 8 * [Math]::Sin($t * 6)
+            if (-not $c.chuteOn) { $a.brot += 8 * [Math]::Sin($t * 6) }   # am Schirm haengt sie ruhig im Gurt
             $a.pFNy += 2.5 * [Math]::Sin($t * 7)
             $a.pBNy += 2.5 * [Math]::Sin($t * 7 + 2)
             $a.tailA += 10 * [Math]::Sin($t * 8)
