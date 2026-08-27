@@ -726,7 +726,7 @@ $POSES = @{
     run    = NewPose @{ brot=-3; bsx=1.08; tailA=24; tailC=0.4; ear=-9; hdy=1 }
     sit    = $SIT
     # Loaf: flach und breit, Pfoetchen ganz eingezogen, Bauch auf dem Boden
-    # (bdy = (1 - bsy) * 21: die Bauchlinie 161 sinkt bis zur Bodenlinie 182)
+    # (bdy = (182 - 161) * bsy: die skalierte Bauchlinie sinkt bis zur Bodenlinie 182)
     sleep  = NewPose @{ bdy=16.8; bsx=1.14; bsy=0.80; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
                         hdx=2; hdy=9; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
     # zusammengerollt: kompakt, alle Pfoetchen weg, Kopf tief
@@ -770,6 +770,24 @@ $POSES = @{
     rub    = NewPose @{ hdx=-2; hrot=-8; tailA=104; tailC=0.2; ear=5; eye=0.45 }
     bat    = NewPose @{ bsy=0.92; pFNx=12; pFNy=-8; pBNy=-4; pBFy=-3; hdy=4; hrot=10; tailA=30; tailC=0.4; ear=-3 }
     greet  = NewPose @{ hdx=9; hdy=3; hrot=7; tailA=92; tailC=0.28; ear=6 }
+    # --- neue Aktivitaeten (Designer-Wettbewerb 27.08.) ---
+    # Katzenbrot: wie 'sleep' flach am Boden, aber wach - Augen offen, Kopf
+    # ein Stueck hoeher, Oehrchen aufgestellt, Schwanz um den Koerper gelegt
+    loaf   = NewPose @{ bdy=17.2; bsx=1.12; bsy=0.82; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
+                        hdx=1; hdy=5; hrot=0; tailA=-25; tailC=1.5; eye=1.0; ear=2 }
+    # Freudenhopser: aufrecht, Schwanz hoch, froehlich offenes Maeulchen
+    hop    = NewPose @{ tailA=62; tailC=0.3; ear=4; mouth=0.3 }
+    # Kopf schief legen (Gesicht ist frontal, hrot liest sich als Neigen)
+    tilt   = PoseFrom $SIT @{ hdx=-8; hdy=-17; hrot=-17; ear=6; tailA=14; tailC=0.9 }
+    # Koepfchen geben: Kopf hoch, Stirn nach vorn, Augen schmal, Schwanz hoch
+    bunt   = NewPose @{ bsy=1.02; pFNx=3; pFFx=2; hdx=6; hdy=-6; hrot=-14; eye=0.45; ear=-6; tailA=80; tailC=0.22; mouth=0.05 }
+    # Katzenkuss: aufrecht sitzen, Kinn leicht gehoben, Schwanz um die Fuesse
+    blink  = PoseFrom $SIT @{ hdy=-18; hrot=-3; tailA=8; tailC=1.0; ear=2; mouth=0.06 }
+    # Schnurren mit Milchtritt (nach dem Streicheln): entspannt, Augen zu Schlitzen
+    purr   = PoseFrom $SIT @{ hdy=-14; hrot=-2; pFNx=7; pFFx=5; eye=0.2; ear=-4; tailA=12; tailC=1.0; mouth=0.08 }
+    # Popo-Wackeln vor dem Sprung: Vorderkoerper tief, Hinterteil hoch, Blick starr
+    wiggle = NewPose @{ bsy=0.86; bsx=1.04; brot=4; bdy=-1; hdy=6; hrot=2; pBNy=-2; pBFy=-2;
+                        tailA=18; tailC=0.5; ear=2 }
 }
 
 # Zustaende, die sich eine Pose mit einem anderen teilen
@@ -1135,7 +1153,8 @@ function Next-KitState($c) {
         $c.target = $G.cats[(Get-Random -Minimum 0 -Maximum $G.cats.Count)]
         Set-State $c 'pester' (Rnd 8 16)
     }
-    elseif ($r -lt 0.55) { Set-State $c 'run'     (Rnd 2 3.5) }
+    elseif ($r -lt 0.51) { Set-State $c 'run'     (Rnd 2 3.5) }
+    elseif ($r -lt 0.55) { Set-State $c 'hop'     (Rnd 1.8 2.8) }
     elseif ($r -lt 0.65) { Set-State $c 'crouch'  (Rnd 0.6 1.1) }
     elseif ($r -lt 0.75) { Set-State $c 'walk'    (Rnd 3 7) }
     elseif ($r -lt 0.82) { Set-State $c 'meow'    (Rnd 1.4 2.4) }
@@ -1170,6 +1189,22 @@ function Next-State($c) {
         'dig'     { Set-State $c 'sniff' (Rnd 4 8); return }
         'sniff'   { Set-State $c 'walk' (Rnd 5 10); return }
         'edge'    { $c.facing = -$c.facing; Set-State $c 'walk' (Rnd 6 14); return }
+        # --- neue Aktivitaeten ---
+        'pet'     { $rp = Rnd 0 1; if ($rp -lt 0.55) { Set-State $c 'purr' (Rnd 4 7); return } elseif ($rp -lt 0.8) { Set-State $c 'hop' (Rnd 2.0 3.0); return } }
+        'purr'    { Set-State $c 'sit' (Rnd 3 6); return }
+        'blink'   { Set-State $c 'sit' (Rnd 3 6); return }
+        'hop'     { if ($G.fly) { Set-State $c 'watch' (Rnd 3 6) } else { Set-State $c 'sit' (Rnd 3 6) }; return }
+        'tilt'    { if ((Rnd 0 1) -lt 0.3) { Set-State $c 'meow' (Rnd 1.6 3) } else { Set-State $c 'sit' (Rnd 3 6) }; return }
+        'bunt'    { if ((Rnd 0 1) -lt 0.6) { Set-State $c 'purr' (Rnd 3.5 6) } else { Set-State $c 'sit' (Rnd 3 6) }; return }
+        'loaf'    { if ((Rnd 0 1) -lt 0.3) { Set-State $c 'stretch' 2.2 } else { Set-State $c 'sit' (Rnd 4 8) }; return }
+        'wiggle'  {
+            # nach dem Popo-Wackeln: Absprung, etwas kraeftiger als aus der Hocke
+            Set-State $c 'leap' 0.9
+            $c.vy = 290 * $c.size
+            $c.vx = 270 * $c.facing * $c.pxs
+            if ($G.fly) { $G.fly.scared = 1.8 }
+            return
+        }
         'bat'     {
             if ($G.toy) { Set-State $c 'toychase' (Rnd 3 8) } else { Set-State $c 'sit' (Rnd 2 4) }
             return
@@ -1204,31 +1239,40 @@ function Next-State($c) {
         $c.facing = 1.0; Set-State $c 'edge' (Rnd 2.5 5); return
     }
 
-    # winkt oder bettelt, wenn der Mauszeiger in der Naehe ist
+    # Mauszeiger in der Naehe: winken, betteln, Kopf schief legen, Katzenkuss oder Koepfchen geben
     $cp = [System.Windows.Forms.Cursor]::Position
-    if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.15) {
+    if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.2) {
         if ($cp.X -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
-        if ((Rnd 0 1) -lt 0.5) { Set-State $c 'wave' (Rnd 2.2 4) } else { Set-State $c 'beg' (Rnd 2.2 4) }
+        $rc = Rnd 0 1
+        if     ($rc -lt 0.22) { Set-State $c 'wave'  (Rnd 3 5) }
+        elseif ($rc -lt 0.42) { Set-State $c 'beg'   (Rnd 3 5) }
+        elseif ($rc -lt 0.62) { Set-State $c 'tilt'  (Rnd 2.5 4) }
+        elseif ($rc -lt 0.82) { Set-State $c 'blink' (Rnd 5 8) }
+        else                  { Set-State $c 'bunt'  (Rnd 4 7) }
         return
     }
 
     $r = Get-Random -Minimum 0.0 -Maximum 1.0
-    if     ($r -lt 0.17) { Set-State $c 'walk'    (Rnd 6 16) }
-    elseif ($r -lt 0.25) { Set-State $c 'sit'     (Rnd 8 20) }
+    if     ($r -lt 0.15) { Set-State $c 'walk'    (Rnd 6 16) }
+    elseif ($r -lt 0.21) { Set-State $c 'sit'     (Rnd 8 20) }
+    elseif ($r -lt 0.26) { Set-State $c 'loaf'    (Rnd 10 25) }
     elseif ($r -lt 0.32) { Set-State $c 'groom'   (Rnd 7 12) }
-    elseif ($r -lt 0.37) { Set-State $c 'scratch' (Rnd 2.5 4.5) }
-    elseif ($r -lt 0.42) { Set-State $c 'idle'    (Rnd 5 12) }
-    elseif ($r -lt 0.47) { Set-State $c 'run'     (Rnd 1.5 3) }
-    elseif ($r -lt 0.54) { Set-State $c 'crouch'  (Rnd 0.9 1.6) }
-    elseif ($r -lt 0.58) { Set-State $c 'roll'    (Rnd 5 10) }
-    elseif ($r -lt 0.62) { Set-State $c 'meow'    (Rnd 1.6 3) }
-    elseif ($r -lt 0.66) { Set-State $c 'stretch' 2.2 }
-    elseif ($r -lt 0.71) { Set-State $c 'yawn'    2.0 }
-    elseif ($r -lt 0.76) { Set-State $c 'wave'    (Rnd 3 5) }
-    elseif ($r -lt 0.82) { Set-State $c 'sniff'   (Rnd 5 10) }
-    elseif ($r -lt 0.86) { Set-State $c 'dig'     (Rnd 3 5) }
-    elseif ($r -lt 0.89) { Set-State $c 'arch'    (Rnd 2 3.5) }
-    elseif ($r -lt 0.92) { Set-State $c 'beg'     (Rnd 3 5) }
+    elseif ($r -lt 0.36) { Set-State $c 'scratch' (Rnd 2.5 4.5) }
+    elseif ($r -lt 0.41) { Set-State $c 'idle'    (Rnd 5 12) }
+    elseif ($r -lt 0.45) { Set-State $c 'run'     (Rnd 1.5 3) }
+    elseif ($r -lt 0.49) { Set-State $c 'crouch'  (Rnd 0.9 1.6) }
+    elseif ($r -lt 0.53) { Set-State $c 'wiggle'  (Rnd 1.2 1.9) }
+    elseif ($r -lt 0.56) { Set-State $c 'roll'    (Rnd 5 10) }
+    elseif ($r -lt 0.60) { Set-State $c 'meow'    (Rnd 1.6 3) }
+    elseif ($r -lt 0.64) { Set-State $c 'stretch' 2.2 }
+    elseif ($r -lt 0.68) { Set-State $c 'yawn'    2.0 }
+    elseif ($r -lt 0.71) { Set-State $c 'hop'     (Rnd 2.0 3.2) }
+    elseif ($r -lt 0.75) { Set-State $c 'wave'    (Rnd 3 5) }
+    elseif ($r -lt 0.80) { Set-State $c 'sniff'   (Rnd 5 10) }
+    elseif ($r -lt 0.84) { Set-State $c 'dig'     (Rnd 3 5) }
+    elseif ($r -lt 0.87) { Set-State $c 'arch'    (Rnd 2 3.5) }
+    elseif ($r -lt 0.90) { Set-State $c 'beg'     (Rnd 3 5) }
+    elseif ($r -lt 0.93) { Set-State $c 'blink'   (Rnd 5 8) }
     else                 { Set-State $c 'sleep'   (Rnd 30 90) }
 }
 
@@ -1272,6 +1316,7 @@ function Update-Behaviour($c, $dt) {
     if ($c.blinkT -le 0) {
         $c.blinkDur = 0.16
         if ([Math]::Abs($c.look) -gt 4 -and (Rnd 0 1) -lt 0.35) { $c.blinkDur = 0.85 }
+        if ($c.state -eq 'loaf') { $c.blinkDur = 1.2 }     # im Katzenbrot immer zufrieden-langsam
         $c.blink = $c.blinkDur
         $c.blinkT = Rnd 1.6 6.5
     }
@@ -1375,6 +1420,59 @@ function Update-Behaviour($c, $dt) {
                 }
             }
         }
+        # --- neue Aktivitaeten -----------------------------------------------
+        'loaf'   { $c.vx = 0 }
+        'tilt'   {
+            $c.vx = 0
+            # zum Mauszeiger drehen, falls er hinter ihr ist (kleine Totzone)
+            $cpt = [System.Windows.Forms.Cursor]::Position
+            if ([Math]::Abs($cpt.X - $c.x) -gt 30 * $c.pxs) { if ($cpt.X -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 } }
+        }
+        'hop' {
+            # Freudenhopser: bei jeder zweiten Landung ein Staubwoelkchen, manchmal ein Herzchen
+            $c.vx = 0
+            $hp = 0.72
+            if ($c.stateT -gt 0.5 -and (($c.stateT % $hp) -lt (($c.stateT - $dt) % $hp))) {
+                $c.digT += 1
+                if (($c.digT % 2) -eq 0) {
+                    Add-Particle $c 'dust' ($CAT_CX - 14) ($GROUND - 8)
+                    Add-Particle $c 'dust' ($CAT_CX + 14) ($GROUND - 8)
+                }
+                if ((Rnd 0 1) -lt 0.3) { Add-Particle $c 'heart' (Rnd 118 148) 86 }
+            }
+        }
+        'bunt' {
+            # Koepfchen geben: gemuetlich zum Mauszeiger tapsen und dort mit der
+            # Stirn anstupsen; ist der Zeiger weit weg oder niemand da, hinsetzen
+            $cur = [System.Windows.Forms.Cursor]::Position
+            $dxc = $cur.X - $c.x
+            if ($G.away -or $c.locked -or [Math]::Abs($dxc) -gt 420 * $c.pxs) { $c.vx = 0; Set-State $c 'sit' (Rnd 2 4) }
+            else {
+                if ([Math]::Abs($dxc) -gt 12) { if ($dxc -ge 0) { $c.facing = 1.0 } else { $c.facing = -1.0 } }
+                if ([Math]::Abs($dxc) -gt 58 * $c.pxs) {
+                    $c.vx = [Math]::Max(-46 * $c.pxs, [Math]::Min(46 * $c.pxs, $dxc * 1.2))
+                    $c.phase += $dt * 5.6
+                } else {
+                    $c.vx = $c.vx * 0.7
+                    $c.heartT -= $dt
+                    if ($c.heartT -le 0) { $c.heartT = Rnd 1.2 2.0; Add-Particle $c 'heart' (Rnd 132 156) 86 }
+                }
+            }
+        }
+        'blink' {
+            # Katzenkuss: genau wenn die Augen ganz zu sind, steigt ein Herzchen auf
+            $c.vx = 0
+            if ($c.heartT -gt 0) { $c.heartT -= $dt }
+            if ([Math]::Sin($c.stateT * 1.7 + 0.4) -gt 0.97 -and $c.heartT -le 0) {
+                $c.heartT = 2.0; Add-Particle $c 'heart' (Rnd 126 150) 88
+            }
+        }
+        'purr' {
+            $c.vx = 0
+            $c.heartT -= $dt
+            if ($c.heartT -le 0) { $c.heartT = Rnd 1.8 3.0; Add-Particle $c 'heart' (Rnd 112 148) 90 }
+        }
+        'wiggle' { $c.vx = 0 }
         # --- Babykatzen: die Grossen aergern -------------------------------
         'pester' {
             $tgt = $c.target
@@ -1501,7 +1599,7 @@ function Update-Behaviour($c, $dt) {
     } elseif (@('greet','nuzzle') -contains $c.state) {
         $p = Get-Partner $c
         if ($p) { $ltx = $p.x; $lty = $p.groundY - 70 * $p.pxs }
-    } elseif (@('sit','idle','meow') -contains $c.state) {
+    } elseif (@('sit','idle','meow','loaf','tilt','blink','purr') -contains $c.state) {
         $cp = [System.Windows.Forms.Cursor]::Position
         if ([Math]::Abs($cp.X - $c.x) -lt 520 * $c.pxs) { $ltx = [double]$cp.X; $lty = [double]$cp.Y }
     }
@@ -1599,7 +1697,7 @@ function Update-Physics($c, $dt) {
 # ============================================================================
 #  Sozialverhalten: begruessen, fangen spielen, zusammen sitzen
 # ============================================================================
-$SOC_BUSY = @('drag','pet','fall','leap','land','toychase','bat','chase')
+$SOC_BUSY = @('drag','pet','fall','leap','land','toychase','bat','chase','bunt','hop','purr')
 
 function Cat-Busy($c) { $c.chase -or ($SOC_BUSY -contains $c.state) }
 
@@ -1990,6 +2088,130 @@ function Get-AppliedPose($c, $dt) {
             $a.tailA += 9 * [Math]::Sin($t * 3.4)
             $a.ear  += 2.5 * [Math]::Sin($t * 7)
             $a.bdy  += 0.4 * [Math]::Sin($t * 2.6)
+        }
+        # --- neue Aktivitaeten ---
+        'loaf' {
+            # Katzenbrot: ruhiges Atmen (bdy gleicht bsy aus, der Bauch bleibt am
+            # Boden), Kopf folgt traege dem Mauszeiger, Schwanzspitze zuckt
+            $br2 = [Math]::Sin($t * 1.6)
+            $a.bsy  += 0.02 * $br2
+            $a.bdy  -= 0.42 * $br2
+            $a.hrot += $c.look * 0.5 + 1.5 * [Math]::Sin($t * 0.6)
+            $a.hdy  += $c.lookY * 0.5 + 0.4 * $br2
+            $a.hdx  += 1.0 * [Math]::Sin($t * 0.45)
+            $a.tailA += 3 * [Math]::Sin($t * 0.9)
+            $a.tailC += 0.08 * [Math]::Sin($t * 1.3)
+        }
+        'hop' {
+            # Freudenhopser auf der Stelle: kurz zusammenducken (Squish), dann
+            # hoch - die Pfoetchen ziehen sich in der Luft ein, die Ohren fliegen
+            # mit, der Kopf hinkt einen Tick hinterher. Ein-/Ausblenden ueber die
+            # Zustandsdauer, damit der Wechsel nicht springt. ($ev2 statt $env!)
+            $hp = 0.72
+            $ev2 = [Math]::Max(0.0, [Math]::Min(1.0, [Math]::Min($c.stateT / 0.3, ($c.stateDur - $c.stateT) / 0.4)))
+            $u = ($c.stateT % $hp) / $hp
+            if ($u -lt 0.22) {
+                $sq = [Math]::Sin([Math]::PI * $u / 0.22) * $ev2
+                $a.bsy -= 0.12 * $sq; $a.bsx += 0.08 * $sq
+                $a.hdy += 3 * $sq;    $a.ear -= 3 * $sq
+            } else {
+                $v = ($u - 0.22) / 0.78
+                $hh = [Math]::Sin([Math]::PI * $v) * $ev2
+                $a.bdy -= 20 * $hh
+                $a.bsy += 0.05 * $hh; $a.bsx -= 0.03 * $hh
+                $a.pFNy -= 9 * $hh; $a.pFFy -= 8 * $hh; $a.pBNy -= 7 * $hh; $a.pBFy -= 6 * $hh
+                $a.hdy += 2.5 * [Math]::Sin(2 * [Math]::PI * $v) * $ev2
+                $a.ear += 5 * $hh
+            }
+            $a.tailA += 10 * [Math]::Sin($t * 6)
+            $a.hrot  += 3 * [Math]::Sin($t * 4)
+        }
+        'tilt' {
+            # Kopf schief legen: erst zur einen Seite, in der zweiten Haelfte
+            # weich (smoothstep) zur anderen; Ohren gespitzt, Blick zum Zeiger
+            $tp = [Math]::Max(0.0, [Math]::Min(1.0, $c.stateT / [Math]::Max(0.5, $c.stateDur)))
+            $sw = [Math]::Max(0.0, [Math]::Min(1.0, ($tp - 0.5) / 0.14))
+            $sw = $sw * $sw * (3 - 2 * $sw)
+            $a.hrot += 31 * $sw + 1.5 * [Math]::Sin($t * 1.8) + $c.look * 0.4
+            $a.hdx  += 5 * $sw
+            $a.hdy  += $c.lookY * 0.4 + 0.5 * [Math]::Sin($t * 2.2)
+            $a.ear  += 3 * [Math]::Sin($t * 2.7)
+            $a.tailA += 10 * [Math]::Sin($t * 2.4)
+            $a.tailC += 0.10 * [Math]::Sin($t * 1.5)
+            $a.bdy  += 0.4 * [Math]::Sin($t * 2.2)
+        }
+        'bunt' {
+            # Koepfchen geben: solange sie noch hintapst, ein sanfter Schritt-
+            # zyklus; steht sie, schiebt sie Stirn und Koerper rhythmisch nach
+            # vorn und die Augen gehen beim Druecken weiter zu. Weich ein-/ausgeblendet.
+            $ev2 = [Math]::Max(0.0, [Math]::Min(1.0, [Math]::Min($c.stateT / 0.6, ($c.stateDur - $c.stateT) / 0.7)))
+            $sp = [Math]::Min(1.0, [Math]::Abs($c.vx) / (46 * [Math]::Max(0.2, $c.pxs)))
+            if ($sp -gt 0.05) {
+                $q = & $step (4.5 * $sp) (5.5 * $sp) 0.0;   $a.pFNx += $q[0]; $a.pFNy += $q[1]
+                $q = & $step (4.0 * $sp) (5.0 * $sp) 2.7;   $a.pFFx += $q[0]; $a.pFFy += $q[1]
+                $q = & $step (4.0 * $sp) (5.0 * $sp) 3.14;  $a.pBNx += $q[0]; $a.pBNy += $q[1]
+                $q = & $step (3.5 * $sp) (4.5 * $sp) 0.5;   $a.pBFx += $q[0]; $a.pBFy += $q[1]
+                $a.bdy += 1.0 * $sp * [Math]::Cos(2 * $ph)
+            }
+            $pu = [Math]::Pow([Math]::Max(0.0, [Math]::Sin($t * 2.6)), 2) * $ev2 * (1 - $sp)
+            $a.hdx  += 4 * $pu
+            $a.hdy  += -2.5 * $pu
+            $a.hrot += -7 * $pu + 2.5 * [Math]::Sin($t * 1.3)
+            $a.bdx  += 2.0 * $pu
+            $a.brot += -1.2 * $pu
+            $a.eye  += -0.10 * $pu + 0.4 * $sp
+            $a.ear  += -3 * $pu
+            $a.tailA += 8 * [Math]::Sin($t * 1.9)
+            $a.tailC += 0.08 * [Math]::Sin($t * 1.4)
+        }
+        'blink' {
+            # Katzenkuss: die Augen gehen ganz langsam zu, bleiben kurz zu und
+            # oeffnen sich wieder (Periode ~3.7 s); dabei hebt sich das Kinn ein
+            # wenig und die Oehrchen gehen nach vorn. Blick folgt dem Mauszeiger.
+            $bl = [Math]::Pow([Math]::Max(0.0, [Math]::Sin($c.stateT * 1.7 + 0.4)), 3)
+            $a.eye  = 1 - 0.88 * $bl
+            $a.hrot += -5 * $bl + 2 * [Math]::Sin($t * 0.8) + $c.look * 0.45
+            $a.hdy  += -3 * $bl + $c.lookY * 0.5
+            $a.ear  += 2.5 * $bl
+            $a.mouth += 0.05 * $bl
+            $a.bdy  += 0.4 * [Math]::Sin($t * 2.4)
+            $a.tailA += 9 * [Math]::Sin($t * 1.6)
+            $a.tailC += 0.06 * [Math]::Sin($t * 1.1)
+        }
+        'purr' {
+            # Schnurren: kleine schnelle Squishes durch den ganzen Koerper, dazu
+            # Milchtritt - die Vorderpfoetchen kneten abwechselnd; die Augen
+            # pendeln zwischen Schlitz und halb offen. Weich ein-/ausgeblendet.
+            $ev2 = [Math]::Max(0.0, [Math]::Min(1.0, [Math]::Min($c.stateT / 0.7, ($c.stateDur - $c.stateT) / 0.9)))
+            $pr = [Math]::Sin($t * 14) * $ev2
+            $a.bsy  += 0.016 * $pr
+            $a.bsx  -= 0.010 * $pr
+            $a.hdy  += 0.7 * [Math]::Sin($t * 14 + 0.6) * $ev2
+            $a.hrot += 3 * [Math]::Sin($t * 1.1) + $c.look * 0.3
+            $a.pFNy += -4 * [Math]::Max(0.0, [Math]::Sin($t * 3.2)) * $ev2
+            $a.pFNx += 1.5 * [Math]::Sin($t * 3.2) * $ev2
+            $a.pFFy += -4 * [Math]::Max(0.0, [Math]::Sin($t * 3.2 + 3.14)) * $ev2
+            $a.pFFx += 1.5 * [Math]::Sin($t * 3.2 + 3.14) * $ev2
+            $a.bdx  += 0.8 * [Math]::Sin($t * 3.2) * $ev2
+            $a.tailA += 5 * [Math]::Sin($t * 1.4) + 1.5 * $pr
+            $a.tailC += 0.05 * [Math]::Sin($t * 0.9)
+            $a.ear  += 1.5 * $pr
+            $a.eye  += 0.15 * [Math]::Sin($t * 0.9)
+        }
+        'wiggle' {
+            # Popo-Wackeln vor dem Sprung: das Hinterteil schwingt immer kraeftiger
+            # hin und her, die Hinterpfoetchen tippeln, der Kopf haelt dagegen
+            $w = [Math]::Max(0.0, [Math]::Min(1.0, $c.stateT / [Math]::Max(0.3, $c.stateDur)))
+            $amp = 0.45 + 0.55 * $w
+            $s = [Math]::Sin($t * 10.5)
+            $a.bdx  += 3.5 * $amp * $s
+            $a.brot += 2.0 * $amp * $s
+            $a.hdx  -= 2.8 * $amp * $s          # Kopf haelt dagegen (erbt bdx)
+            $a.pBNx += 3.5 * $amp * $s; $a.pBNy -= 3 * $amp * [Math]::Max(0, $s)
+            $a.pBFx -= 3.5 * $amp * $s; $a.pBFy -= 3 * $amp * [Math]::Max(0, -$s)
+            $a.tailA += 28 * [Math]::Sin($t * 6.5)
+            $a.tailC += 0.22 * [Math]::Sin($t * 6.5 - 1)
+            $a.ear  += 2 * $s
         }
         'wave' {
             # winkt: das angehobene Pfoetchen pendelt hin und her
@@ -2481,6 +2703,10 @@ if ($Sheet) {
         @{ n='arch';   s='arch';   ph=0.0 }, @{ n='shake';  s='shake';  ph=0.0 }
         @{ n='dig';    s='dig';    ph=0.0 }, @{ n='beg';    s='beg';    ph=0.0 }
         @{ n='rub';    s='rub';    ph=0.0 }
+        @{ n='loaf';   s='loaf';   ph=0.0 }, @{ n='hop';    s='hop';    ph=0.0 }
+        @{ n='tilt';   s='tilt';   ph=0.0 }, @{ n='bunt';   s='bunt';   ph=0.0 }
+        @{ n='blink';  s='blink';  ph=0.0 }, @{ n='purr';   s='purr';   ph=0.0 }
+        @{ n='wiggle'; s='wiggle'; ph=0.0 }
     )
     $c.blink = 0; $c.swipe = 0; $c.t = 0.35; $c.y = 0; $c.facing = 1.0; $c.size = 1.0
     $c.stateT = 0.8; $c.stateDur = 1.6      # fuer 'yawn': Maul in der Mitte weit offen

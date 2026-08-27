@@ -71,8 +71,10 @@ hinüber.
 
 ## Was jede von allein macht
 
-Laufen · Rennen · Sitzen · Sich putzen (erst die Pfote ablecken, dann damit über Ohr und
-Wange wischen) · Sich hinterm Ohr kratzen · Auf dem Rücken wälzen · Gähnen (Maul weit auf) ·
+Laufen · Rennen · Sitzen · **Katzenbrot** (flach am Boden, wach, Blick zum Zeiger, langsames
+Blinzeln) · **Freudenhopser** (Squish, Hüpfer, Pfötchen eingezogen) · **Popo-Wackeln** vor dem
+Sprung · Sich putzen (erst die Pfote ablecken, dann damit über Ohr und Wange wischen) · Sich
+hinterm Ohr kratzen · Lümmeln · Gähnen (Maul weit auf) ·
 Maunzen (mit „miau") · Als Fellnase-Loaf schlafen · Zusammengerollt schlafen (mit z-z-z) ·
 Strecken · **Katzenbuckel machen** · **Sich schütteln** (nach dem Aufwachen und nach dem
 Hochheben) · **Am Boden schnuppern** und dabei im Schneckentempo weiterschleichen ·
@@ -82,7 +84,9 @@ aufrichten und kratzen · Blinzeln · Ohrenzucken · Schwanzwedeln · Atmen.
 
 Im Sitzen und im Leerlauf **verfolgt ihr Kopf deinen Mauszeiger** — und dabei **blinzelt
 sie dich manchmal langsam an**, was bei Katzen Zuneigung bedeutet. Ist der Mauszeiger nah,
-**winkt oder bettelt** sie dich gezielt an. Die Zustände gehen sinnvoll ineinander über
+**winkt oder bettelt** sie, **legt den Kopf schief**, schenkt dir einen **Katzenkuss**
+(ganz langsames Blinzeln mit Herzchen) oder tapst hin und **gibt Köpfchen**. Nach dem
+Streicheln **schnurrt** sie mit Milchtritt oder macht Freudenhopser. Die Zustände gehen sinnvoll ineinander über
 (Schlafen → Schütteln → Gähnen → Strecken → Buckel → Losspazieren; Scharren → Schnuppern →
 Weiterlaufen). Beide haben eigene Zeitgeber, atmen also nicht im Gleichschritt.
 
