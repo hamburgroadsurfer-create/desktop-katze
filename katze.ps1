@@ -2529,7 +2529,7 @@ if ($Pose) {
 if ($Fast) { $G.soc.cool = 4.0; $G.toyT = 28.0; $G.flyT = 48.0 }
 
 $timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromMilliseconds(24)     # ~40 fps
+$timer.Interval = [TimeSpan]::FromMilliseconds(28)     # ~36 fps (Kompromiss aus Fluessigkeit und CPU)
 $timer.Add_Tick({
     # Alles in try/catch: ein Fehler hier wuerde sonst lautlos verschluckt und
     # die Katzen blieben einfach stehen, ohne Spur im Log.
