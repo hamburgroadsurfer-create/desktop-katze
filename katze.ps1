@@ -62,6 +62,70 @@ public static class CatNative {
 }
 '@
 
+# Silhouetten-Mathematik in C#: Anker transformieren und per Catmull-Rom zu
+# Bezier-Punkten verbinden. In PowerShell waeren das ~1000 Anweisungen pro
+# Frame und Katze (~35 % eines Kerns); hier ist es ein Aufruf.
+# Kopf: Skalierung um (128,128), Drehung um (112,142) - identisch zu $headG.
+Add-Type -ReferencedAssemblies @([System.Windows.Point].Assembly.Location, [System.Windows.Media.PointCollection].Assembly.Location) -TypeDefinition @'
+using System;
+using System.Windows;
+using System.Windows.Media;
+public static class CatSil {
+    public static Point Compute(double[] X, double[] Y, int[] G, double[] S, int[] E, double[] W, int n,
+        double bcx, double ground, double belly, double earbx, double earby,
+        double bsx, double bsy, double brot, double bdx, double bdy,
+        double hrot, double hdx, double hdy, double hk, double ear,
+        double pFNx, double pFNy, double pBNx, double pBNy, PointCollection pts) {
+        double br = brot * 0.0174533, cb = Math.Cos(br), sb = Math.Sin(br);
+        double hr = hrot * 0.0174533, hc = Math.Cos(hr), hs = Math.Sin(hr);
+        double er = ear * 0.0174533;
+        double hx = bdx + hdx, hy = bdy + hdy;
+        double fF = Math.Max(0.0, Math.Min(1.0, 1 + pFNy / 17.0));
+        double fB = Math.Max(0.0, Math.Min(1.0, 1 + pBNy / 17.0));
+        double[] px = new double[n], py = new double[n];
+        for (int i = 0; i < n; i++) {
+            double x = X[i], y = Y[i]; int g = G[i];
+            if (g == 1) {
+                int e = E[i];
+                if (e != 0) {
+                    double bx = 128 + e * earbx, by = earby;
+                    double ca = Math.Cos(er * e), sa = Math.Sin(er * e);
+                    double dx0 = x - bx, dy0 = y - by;
+                    x = bx + dx0 * ca - dy0 * sa; y = by + dx0 * sa + dy0 * ca;
+                }
+                x = 128 + (x - 128) * hk; y = 128 + (y - 128) * hk;
+                double dx = x - 112, dy = y - 142;
+                x = 112 + dx * hc - dy * hs + hx;
+                y = 142 + dx * hs + dy * hc + hy;
+            } else {
+                if (g == 3)      { x += pFNx; y = belly + (y - belly) * fF; }
+                else if (g == 2) { x += pBNx; y = belly + (y - belly) * fB; }
+                double dx = (x - bcx) * bsx, dy = (y - ground) * bsy;
+                x = bcx + dx * cb - dy * sb + bdx;
+                y = ground + dx * sb + dy * cb + bdy;
+                double w = W[i];
+                if (w > 0) {
+                    double kx = 128 + (X[i] - 128) * hk, ky = 128 + (Y[i] - 128) * hk;
+                    double ddx = kx - 112, ddy = ky - 142;
+                    kx = 112 + ddx * hc - ddy * hs + hx;
+                    ky = 142 + ddx * hs + ddy * hc + hy;
+                    x = x * (1 - w) + kx * w; y = y * (1 - w) + ky * w;
+                }
+            }
+            px[i] = x; py[i] = y;
+        }
+        for (int i = 0; i < n; i++) {
+            int i0 = (i + n - 1) % n, i1 = (i + 1) % n, i2 = (i + 2) % n;
+            double s1 = S[i], s2 = S[i1];
+            pts[3 * i]     = new Point(px[i]  + (px[i1] - px[i0]) * s1, py[i]  + (py[i1] - py[i0]) * s1);
+            pts[3 * i + 1] = new Point(px[i1] - (px[i2] - px[i])  * s2, py[i1] - (py[i2] - py[i])  * s2);
+            pts[3 * i + 2] = new Point(px[i1], py[i1]);
+        }
+        return new Point(px[0], py[0]);
+    }
+}
+'@
+
 # --- Leinwand-Geometrie (Entwurfskoordinaten, Katze schaut nach rechts) ------
 $CW = 190.0      # Breite
 $CH = 190.0      # Hoehe (oberer Bereich = Platz fuer Herzchen / Z-Z-Z)
@@ -1984,60 +2048,11 @@ function Apply-Pose($c, $a) {
     $c.legFF.tr.X = $a.pFFx; $c.legFF.sc.ScaleY = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pFFy / 17.0))
     $c.legBF.tr.X = $a.pBFx; $c.legBF.sc.ScaleY = [Math]::Max(0.0, [Math]::Min(1.0, 1 + $a.pBFy / 17.0))
 
-    # --- Silhouette: Anker transformieren -----------------------------------
-    $br = $a.brot * 0.0174533; $cb = [Math]::Cos($br); $sb = [Math]::Sin($br)
-    $hr = $a.hrot * 0.0174533; $hc = [Math]::Cos($hr); $hs = [Math]::Sin($hr)
-    $er = $a.ear * 0.0174533
-    $hk = $c.headK
-    $hx = $a.bdx + $a.hdx; $hy = $a.bdy + $a.hdy
-    $n = $SIL_N
-    $px = New-Object double[] $n; $py = New-Object double[] $n
-    for ($i = 0; $i -lt $n; $i++) {
-        $x = $SIL_X[$i]; $y = $SIL_Y[$i]; $g = $SIL_G[$i]
-        if ($g -eq 1) {
-            $e = $SIL_E[$i]
-            if ($e -ne 0) {
-                # Ohrspitze um die Ohrbasis drehen (rechtes Ohr +ear, linkes -ear)
-                $bx = 128 + $e * $SIL_EARBX; $by = $SIL_EARBY
-                $ca = [Math]::Cos($er * $e); $sa = [Math]::Sin($er * $e)
-                $dx = $x - $bx; $dy = $y - $by
-                $x = $bx + $dx * $ca - $dy * $sa; $y = $by + $dx * $sa + $dy * $ca
-            }
-            # Kopf: Skalierung um (128,128), Drehung um (112,142), Verschiebung
-            $x = 128 + ($x - 128) * $hk; $y = 128 + ($y - 128) * $hk
-            $dx = $x - 112; $dy = $y - 142
-            $x = 112 + $dx * $hc - $dy * $hs + $hx
-            $y = 142 + $dx * $hs + $dy * $hc + $hy
-        } else {
-            if ($g -eq 3)     { $x += $a.pFNx; $y = $SIL_BELLY + ($y - $SIL_BELLY) * $fF }
-            elseif ($g -eq 2) { $x += $a.pBNx; $y = $SIL_BELLY + ($y - $SIL_BELLY) * $fB }
-            # Rumpf: Skalierung und Drehung um die Bodenlinie, dann Verschiebung
-            $dx = ($x - $BCX) * $a.bsx; $dy = ($y - $GROUND) * $a.bsy
-            $x = $BCX + $dx * $cb - $dy * $sb + $a.bdx
-            $y = $GROUND + $dx * $sb + $dy * $cb + $a.bdy
-            # Uebergangs-Anker (Brust, Nacken) folgen dem Kopf anteilig, damit
-            # die Kontur am Hals nicht faltet, wenn der Kopf wandert
-            $w = $SIL_W[$i]
-            if ($w -gt 0) {
-                $kx = 128 + ($SIL_X[$i] - 128) * $hk; $ky = 128 + ($SIL_Y[$i] - 128) * $hk
-                $dx = $kx - 112; $dy = $ky - 142
-                $kx = 112 + $dx * $hc - $dy * $hs + $hx
-                $ky = 142 + $dx * $hs + $dy * $hc + $hy
-                $x = $x * (1 - $w) + $kx * $w; $y = $y * (1 - $w) + $ky * $w
-            }
-        }
-        $px[$i] = $x; $py[$i] = $y
-    }
-    # --- Catmull-Rom -> kubische Bezier-Segmente (geschlossen) --------------
-    $c.silFig.StartPoint = [System.Windows.Point]::new($px[0], $py[0])
-    $pts = $c.silPts
-    for ($i = 0; $i -lt $n; $i++) {
-        $i0 = ($i + $n - 1) % $n; $i1 = ($i + 1) % $n; $i2 = ($i + 2) % $n
-        $s1 = $SIL_S[$i]; $s2 = $SIL_S[$i1]
-        $pts[3 * $i]     = [System.Windows.Point]::new($px[$i]  + ($px[$i1] - $px[$i0]) * $s1, $py[$i]  + ($py[$i1] - $py[$i0]) * $s1)
-        $pts[3 * $i + 1] = [System.Windows.Point]::new($px[$i1] - ($px[$i2] - $px[$i])  * $s2, $py[$i1] - ($py[$i2] - $py[$i])  * $s2)
-        $pts[3 * $i + 2] = [System.Windows.Point]::new($px[$i1], $py[$i1])
-    }
+    # --- Silhouette: Anker transformieren + Catmull-Rom->Bezier (C#, s. CatSil)
+    $c.silFig.StartPoint = [CatSil]::Compute($SIL_X, $SIL_Y, $SIL_G, $SIL_S, $SIL_E, $SIL_W, $SIL_N,
+        $BCX, $GROUND, $SIL_BELLY, $SIL_EARBX, $SIL_EARBY,
+        $a.bsx, $a.bsy, $a.brot, $a.bdx, $a.bdy, $a.hrot, $a.hdx, $a.hdy, $c.headK, $a.ear,
+        $a.pFNx, $a.pFNy, $a.pBNx, $a.pBNy, $c.silPts)
 
     # --- Gesicht --------------------------------------------------------------
     $e2 = [Math]::Max(0.05, $a.eye)
