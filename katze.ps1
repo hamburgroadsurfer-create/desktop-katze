@@ -1151,7 +1151,7 @@ function Update-Fly($dt) {
 #  auf halber Hoehe, pulsiert leicht durchsichtig. Bleibt, bis man ihn wegschickt.
 # ============================================================================
 function New-Ghost($size) {
-    $sp = New-SpriteWindow 64 76 'Katzen-Geist' $size
+    $sp = New-SpriteWindow 64 76 'Katzen-Geist' ($size * 1.5)     # Geist ist etwa katzengross
     $body = New-Object System.Windows.Shapes.Path
     $body.Data = [System.Windows.Media.Geometry]::Parse('M 10,34 C 10,6 54,6 54,34 L 54,62 C 50,55 45,55 42,62 C 39,69 34,69 32,62 C 29,55 24,55 22,62 C 19,69 13,69 10,62 Z')
     $body.Fill = New-Brush '#F4F6FF'
@@ -2660,9 +2660,9 @@ function Set-AllSizes([double]$s) {
     foreach ($k in $G.kits) { Set-CatSize $k ($s * $k.rel) }
     foreach ($sp in @($G.toy, $G.fly, $G.ghost)) {
         if ($sp) {
-            $sp.sp.size = $s
-            $sp.sp.cv.RenderTransform = New-Object System.Windows.Media.ScaleTransform($s, $s)
-            $sp.sp.win.Width = $sp.sp.w * $s; $sp.sp.win.Height = $sp.sp.h * $s
+            $sp.sp.size = $s; if ($sp -eq $G.ghost) { $sp.sp.size = $s * 1.5 }
+            $sp.sp.cv.RenderTransform = New-Object System.Windows.Media.ScaleTransform($sp.sp.size, $sp.sp.size)
+            $sp.sp.win.Width = $sp.sp.w * $sp.sp.size; $sp.sp.win.Height = $sp.sp.h * $sp.sp.size
         }
     }
 }
