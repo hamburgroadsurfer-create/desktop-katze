@@ -17,7 +17,9 @@ param(
     [string]$Sheet = '',
     [switch]$Fast,
     [switch]$MitBabykatzen,
-    [switch]$MitGeist
+    [switch]$MitGeist,
+    [switch]$MitInsekten,
+    [switch]$MitFlut
 )
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase,
@@ -202,6 +204,9 @@ $G = @{
     kits = New-Object System.Collections.ArrayList   # Babykatzen (auf Bedarf)
     toy = $null; fly = $null      # Wollknaeuel, Schmetterling
     ghost = $null                 # Geist (auf Bedarf)
+    bugs = New-Object System.Collections.ArrayList   # Schmetterlinge und Bienen (auf Bedarf)
+    floodGhosts = New-Object System.Collections.ArrayList   # Gast-Geister der Tierflut
+    floodT = 0.0                  # Restzeit der Tierflut in Sekunden
     toyT = 45.0; flyT = 85.0
     soc = @{ mode = 'none'; t = 0.0; cool = 60.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
     hkT = 1.0                     # Zaehler fuer die Wartungsroutine
@@ -432,7 +437,7 @@ function New-Eye($cx, $cy, $r) {
 # ============================================================================
 #  Eine Katze bauen: Fenster + Rig + Zustand
 # ============================================================================
-function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [string]$acc, [double]$headK = 1.14) {
+function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [string]$acc, [double]$headK = 1.08) {
     $c = @{
         name = $name; fur = $fur; size = $size; acc = $acc
         col = (Get-Palette $fur); fill = @{}; stroke = @{}
@@ -1028,10 +1033,10 @@ function New-Yarn($size) {
     $sp
 }
 
-function New-Butterfly($size) {
+function New-Butterfly($size, $colA = '#9CB9EC', $colB = '#C4A4E8') {
     $sp = New-SpriteWindow 46 36 'Katzen-Schmetterling' $size
-    $wingA = New-Brush '#9CB9EC'
-    $wingB = New-Brush '#C4A4E8'
+    $wingA = New-Brush $colA
+    $wingB = New-Brush $colB
     $spot  = New-Brush '#EDF3FF'
     $dark  = New-Brush '#463F52'
     # Fuehler zuerst (liegen hinter den Fluegeln, ragen oben heraus)
@@ -1195,13 +1200,19 @@ function New-Ghost($size) {
     $sp
 }
 
+# ein Geist-Objekt an Position x (fuer den festen Geist und die Tierflut)
+function New-GhostObj([double]$x) {
+    $ref = $G.cats[0]
+    $gh = @{ sp = (New-Ghost $ref.size); x = $x; y = 0.0; ph = (Rnd 0 6); vx = ((Rnd 28 44) * $ref.pxs)
+             blinkT = (Rnd 2 5); blink = 0.0 }
+    if ((Rnd 0 1) -lt 0.5) { $gh.vx = -$gh.vx }
+    $gh
+}
+
 function Spawn-Ghost {
     if ($G.ghost -or $G.cats.Count -eq 0) { return }
-    $ref = $G.cats[0]
-    $wa = $ref.screen.WorkingArea
-    $G.ghost = @{ sp = (New-Ghost $ref.size); x = [double]($wa.Left + $wa.Width * 0.5); y = 0.0
-                  ph = (Rnd 0 6); vx = ((Rnd 28 44) * $ref.pxs); blinkT = (Rnd 2 5); blink = 0.0 }
-    if ((Rnd 0 1) -lt 0.5) { $G.ghost.vx = -$G.ghost.vx }
+    $wa = $G.cats[0].screen.WorkingArea
+    $G.ghost = New-GhostObj ([double]($wa.Left + $wa.Width * 0.5))
     Log-Event 'Geist gerufen'
 }
 
@@ -1211,9 +1222,8 @@ function Despawn-Ghost {
 
 function Toggle-Ghost { if ($G.ghost) { Despawn-Ghost } else { Spawn-Ghost } }
 
-function Update-Ghost($dt) {
-    if (-not $G.ghost -or $G.cats.Count -eq 0) { return }
-    $gh = $G.ghost
+# bewegt ein Geist-Objekt einen Frame weiter
+function Move-Ghost($gh, $dt) {
     $ref = $G.cats[0]
     $wa = $ref.screen.WorkingArea
     $gh.ph += $dt
@@ -1230,6 +1240,178 @@ function Update-Ghost($dt) {
     $gh.blinkT -= $dt
     if ($gh.blinkT -le 0) { $gh.blinkT = Rnd 2.5 6; $gh.blink = 0.18 }
     if ($gh.blink -gt 0) { $gh.blink -= $dt; $gh.sp.eyeScl.ScaleY = [Math]::Max(0.08, [Math]::Abs($gh.blink / 0.09 - 1)) } else { $gh.sp.eyeScl.ScaleY = 1 }
+}
+
+function Update-Ghost($dt) {
+    if ($G.cats.Count -eq 0) { return }
+    if ($G.ghost) { Move-Ghost $G.ghost $dt }
+    foreach ($fg in @($G.floodGhosts)) { Move-Ghost $fg $dt }
+}
+
+# ============================================================================
+#  Schwarm: Schmetterlinge (gemaechlich, Wellenflug) und Bienen (flott, Zickzack)
+#  schwirren dauerhaft ueber den Monitor der Katzen, bis man sie wegschickt.
+# ============================================================================
+$BUG_COLORS = @(@('#9CB9EC','#C4A4E8'), @('#F6B3C8','#F9D6E0'), @('#F9D97A','#FBE9B0'), @('#A8E0C8','#D4F1E4'))
+
+function New-Bee($size) {
+    $sp = New-SpriteWindow 40 32 'Katzen-Biene' $size
+    $yel = New-Brush '#F6C84A'; $bdark = New-Brush '#3E3A35'; $wing = New-Brush '#DDEBFF'
+    $g = New-Object System.Windows.Controls.Canvas
+    $g.Width = 40; $g.Height = 32
+    # Fluegel (hinter dem Koerper), summen ueber ScaleY um den Ansatz
+    $wg = New-Object System.Windows.Controls.Canvas
+    $wg.Width = 40; $wg.Height = 32
+    [void]$wg.Children.Add((New-Oval 17 9 6 4.5 -20 $wing $null 0))
+    [void]$wg.Children.Add((New-Oval 25 9 6 4.5 20 $wing $null 0))
+    $wg.Opacity = 0.85
+    $sp.wing = New-Object System.Windows.Media.ScaleTransform(1, 1)
+    $sp.wing.CenterX = 21; $sp.wing.CenterY = 14
+    $wg.RenderTransform = $sp.wing
+    [void]$g.Children.Add($wg)
+    # gelber Koerper mit zwei Streifen (im Zuschnitt der Koerperform)
+    $bc = New-Object System.Windows.Controls.Canvas
+    $bc.Width = 40; $bc.Height = 32
+    $clip = New-Object System.Windows.Media.EllipseGeometry
+    $clip.Center = [System.Windows.Point]::new(21, 18); $clip.RadiusX = 10; $clip.RadiusY = 7
+    $bc.Clip = $clip
+    [void]$bc.Children.Add((New-Oval 21 18 10 7 0 $yel $null 0))
+    foreach ($sx in @(19, 25)) {
+        $r = New-Object System.Windows.Shapes.Rectangle
+        $r.Width = 2.6; $r.Height = 16; $r.Fill = $bdark
+        [System.Windows.Controls.Canvas]::SetLeft($r, $sx - 1.3); [System.Windows.Controls.Canvas]::SetTop($r, 10)
+        [void]$bc.Children.Add($r)
+    }
+    [void]$g.Children.Add($bc)
+    # Kopf mit Glanzauge, kleiner Stachel
+    [void]$g.Children.Add((New-Oval 9.5 18 4.6 4.6 0 $bdark $null 0))
+    [void]$g.Children.Add((New-Oval 8.4 16.6 1.4 1.4 0 (New-Brush '#FFFFFF') $null 0))
+    [void]$g.Children.Add((New-Oval 32.5 18 2.2 1.4 0 $bdark $null 0))
+    # Blickrichtung: Kopf zeigt in Flugrichtung
+    $sp.flip = New-Object System.Windows.Media.ScaleTransform(1, 1)
+    $sp.flip.CenterX = 20; $sp.flip.CenterY = 16
+    $g.RenderTransform = $sp.flip
+    [void]$sp.cv.Children.Add($g)
+    $sp
+}
+
+# ein Insekt (Schmetterling in Zufallsfarbe oder Biene) auf dem Monitor von $ref
+function New-Bug([string]$kind, $ref) {
+    $wa = $ref.screen.WorkingArea
+    if ($kind -eq 'bee') {
+        $b = @{ kind = 'bee'; sp = (New-Bee $ref.size); vmin = 60; vmax = 110 }
+    } else {
+        $cc = $BUG_COLORS[(Get-Random -Minimum 0 -Maximum $BUG_COLORS.Count)]
+        $b = @{ kind = 'butterfly'; sp = (New-Butterfly $ref.size $cc[0] $cc[1]); vmin = 22; vmax = 45 }
+    }
+    $b.x = [double](Rnd ($wa.Left + 80) ($wa.Right - 80)); $b.y = 0.0
+    $b.by = [double]($wa.Top + $wa.Height * (Rnd 0.15 0.6)); $b.base = Rnd 0.15 0.6
+    $b.ph = Rnd 0 6; $b.vx = 0.0; $b.turnT = 0.0
+    $b
+}
+
+function Spawn-Bugs {
+    if ($G.bugs.Count -gt 0 -or $G.cats.Count -eq 0) { return }
+    $ref = $G.cats[0]
+    for ($i = 0; $i -lt 5; $i++) {
+        $kind = 'bee'; if ($i -lt 3) { $kind = 'butterfly' }
+        [void]$G.bugs.Add((New-Bug $kind $ref))
+    }
+    Log-Event 'Schmetterlinge und Bienen gerufen'
+}
+
+function Despawn-Bugs {
+    if ($G.bugs.Count -eq 0) { return }
+    foreach ($b in @($G.bugs)) { $b.sp.win.Close() }
+    $G.bugs.Clear()
+    Log-Event 'Schmetterlinge und Bienen weggeschickt'
+}
+
+function Toggle-Bugs { if ($G.bugs.Count -gt 0) { Despawn-Bugs } else { Spawn-Bugs } }
+
+# das Insekt, das einer Katze (waagerecht) am naechsten ist
+function Get-NearestBug($c) {
+    $best = $null; $bd = [double]::MaxValue
+    foreach ($b in $G.bugs) { $d = [Math]::Abs($b.x - $c.x); if ($d -lt $bd) { $bd = $d; $best = $b } }
+    $best
+}
+
+function Update-Bugs($dt) {
+    if ($G.bugs.Count -eq 0 -or $G.cats.Count -eq 0) { return }
+    $ref = $G.cats[0]
+    $wa = $ref.screen.WorkingArea
+    foreach ($b in $G.bugs) {
+        $b.ph += $dt
+        $b.turnT -= $dt
+        if ($b.turnT -le 0) {
+            # neue Richtung, neues Tempo, neue Zielhoehe
+            $b.turnT = Rnd 2 6
+            $dirn = 1.0; if ((Rnd 0 1) -lt 0.5) { $dirn = -1.0 }
+            $b.vx = (Rnd $b.vmin $b.vmax) * $ref.pxs * $dirn
+            $b.base = Rnd 0.12 0.62
+        }
+        $b.x += $b.vx * $dt
+        $bm = 50 * $ref.pxs
+        if ($b.x -lt ($wa.Left + $bm))  { $b.x = $wa.Left + $bm;  $b.vx = [Math]::Abs($b.vx) }
+        if ($b.x -gt ($wa.Right - $bm)) { $b.x = $wa.Right - $bm; $b.vx = -[Math]::Abs($b.vx) }
+        $b.by += (($wa.Top + $wa.Height * $b.base) - $b.by) * [Math]::Min(1.0, $dt * 0.4)
+        if ($b.kind -eq 'bee') {
+            $b.y = $b.by + 14 * $ref.pxs * [Math]::Sin($b.ph * 9) + 30 * $ref.pxs * [Math]::Sin($b.ph * 1.7)
+            $b.sp.wing.ScaleY = 0.3 + 0.7 * [Math]::Abs([Math]::Sin($b.ph * 40))
+            if ($b.vx -gt 0) { $b.sp.flip.ScaleX = -1 } else { $b.sp.flip.ScaleX = 1 }
+        } else {
+            $b.y = $b.by + 40 * $ref.pxs * [Math]::Sin($b.ph * 0.8) + 10 * $ref.pxs * [Math]::Sin($b.ph * 3.9)
+            $flap = 0.22 + 0.78 * [Math]::Abs([Math]::Sin($b.ph * 12))
+            $b.sp.wl.ScaleX = $flap; $b.sp.wr.ScaleX = $flap
+        }
+        Set-SpritePos $b.sp $b.x $b.y
+    }
+}
+
+# ============================================================================
+#  Tierflut: auf Knopfdruck fuellt sich der Bildschirm eine Minute lang mit
+#  Gast-Kaetzchen, Geistern, Schmetterlingen, Bienen und einem Wollknaeuel -
+#  danach verschwinden die Gaeste von selbst wieder (flood-Markierung).
+# ============================================================================
+function Start-Flood {
+    if ($G.floodT -gt 0 -or $G.cats.Count -eq 0) { return }
+    $ref = $G.cats[0]
+    $wa = $ref.screen.WorkingArea
+    $furs = @('orange','grau','schwarz','weiss','siam')
+    for ($i = 0; $i -lt 6; $i++) {
+        $k = New-Cat $furs[(Get-Random -Minimum 0 -Maximum 5)] ($ref.size * (Rnd 0.4 0.65)) ('Gast' + $i) ('Desktop-Katze-Gast' + $i) '' 1.2
+        $k.kit = $true; $k.flood = $true; $k.rel = $k.size / $ref.size
+        $k.screen = $ref.screen; $k.groundY = $ref.groundY
+        $k.x = [double](Rnd ($wa.Left + 60) ($wa.Right - 60))
+        [void]$G.kits.Add($k)
+        Build-CatMenu $k
+        if (-not $G.hidden) { $k.win.Show() }
+        Update-WindowPos $k
+        Add-Particle $k 'dust' ($CAT_CX - 8) ($GROUND - 12)
+        Add-Particle $k 'dust' ($CAT_CX + 8) ($GROUND - 10)
+        Set-State $k 'run' (Rnd 1 2.5)
+    }
+    for ($i = 0; $i -lt 3; $i++) {
+        [void]$G.floodGhosts.Add((New-GhostObj ([double](Rnd ($wa.Left + 100) ($wa.Right - 100)))))
+    }
+    for ($i = 0; $i -lt 10; $i++) {
+        $kind = 'bee'; if ($i -lt 6) { $kind = 'butterfly' }
+        $b = New-Bug $kind $ref
+        $b.flood = $true
+        [void]$G.bugs.Add($b)
+    }
+    Spawn-Yarn
+    $G.floodT = 60.0
+    Log-Event 'Tierflut gestartet'
+}
+
+function End-Flood {
+    $G.floodT = 0.0
+    foreach ($k in @($G.kits)) { if ($k.flood) { Clear-Particles $k; $k.win.Close(); $G.kits.Remove($k) } }
+    foreach ($b in @($G.bugs)) { if ($b.flood) { $b.sp.win.Close(); $G.bugs.Remove($b) } }
+    foreach ($gh in @($G.floodGhosts)) { $gh.sp.win.Close() }
+    $G.floodGhosts.Clear()
+    Log-Event 'Tierflut vorbei'
 }
 
 # ============================================================================
@@ -1371,7 +1553,7 @@ function Next-State($c) {
             return
         }
         'toychase' { if (-not $G.toy) { Set-State $c 'idle' (Rnd 1.5 3); return } }
-        'watch'    { if (-not $G.fly -and -not $G.ghost) { Set-State $c 'sit' (Rnd 2 4); return } }
+        'watch'    { if (-not $G.fly -and -not $G.ghost -and $G.bugs.Count -eq 0) { Set-State $c 'sit' (Rnd 2 4); return } }
         'land'     {
             if ($G.toy -and (Am-I-Closest $c $G.toy.x)) { Set-State $c 'toychase' (Rnd 3 7); return }
             if ((Rnd 0 1) -lt 0.45) { Set-State $c 'shake' 1.1; return }
@@ -1390,6 +1572,15 @@ function Next-State($c) {
         if ($G.ghost.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
         if ((Rnd 0 1) -lt 0.4) { Set-State $c 'arch' (Rnd 2 3.5) } else { Set-State $c 'watch' (Rnd 3 6) }
         return
+    }
+
+    # Insekten schwirren? gelegentlich hinschauen
+    if ($G.bugs.Count -gt 0 -and (Rnd 0 1) -lt 0.25) {
+        $nb = Get-NearestBug $c
+        if ($nb -and [Math]::Abs($nb.x - $c.x) -lt 320 * $c.pxs) {
+            if ($nb.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
+            Set-State $c 'watch' (Rnd 3 6); return
+        }
     }
 
     # Spielzeug geht vor - aber nur fuer die Katze, die naeher dran ist
@@ -1575,6 +1766,7 @@ function Update-Behaviour($c, $dt) {
         'watch' {
             $c.vx = 0
             if (-not $G.fly -and $G.ghost) { if ($G.ghost.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 } }
+            elseif (-not $G.fly -and $G.bugs.Count -gt 0) { $nb = Get-NearestBug $c; if ($nb -and [Math]::Abs($nb.x - $c.x) -gt 26 * $c.pxs) { if ($nb.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 } } }
             if ($G.fly) {
                 $dxf = $G.fly.x - $c.x
                 if ([Math]::Abs($dxf) -gt 26 * $c.pxs) {
@@ -1790,6 +1982,8 @@ function Update-Behaviour($c, $dt) {
         $ltx = $G.fly.x; $lty = $G.fly.y
     } elseif ($c.state -eq 'watch' -and $G.ghost) {
         $ltx = $G.ghost.x; $lty = $G.ghost.y
+    } elseif ($c.state -eq 'watch' -and $G.bugs.Count -gt 0) {
+        $nb = Get-NearestBug $c; if ($nb) { $ltx = $nb.x; $lty = $nb.y }
     } elseif (@('greet','nuzzle') -contains $c.state) {
         $p = Get-Partner $c
         if ($p) { $ltx = $p.x; $lty = $p.groundY - 70 * $p.pxs }
@@ -2562,7 +2756,7 @@ function Show-Cats([bool]$show) {
     foreach ($c in (@($G.cats) + @($G.kits))) {
         if ($show) { $c.win.Show() } else { if ($c.dragging) { $c.root.ReleaseMouseCapture() }; $c.win.Hide() }
     }
-    foreach ($sp in @($G.toy, $G.fly, $G.ghost)) {
+    foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts))) {
         if ($sp) { if ($show) { $sp.sp.win.Show() } else { $sp.sp.win.Hide() } }
     }
 }
@@ -2629,7 +2823,7 @@ function Update-Housekeeping($dt) {
         $moved = 0
         $wins = @()
         foreach ($c in (@($G.cats) + @($G.kits))) { $wins += $c.win }
-        foreach ($sp in @($G.toy, $G.fly, $G.ghost)) { if ($sp) { $wins += $sp.sp.win } }
+        foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts))) { if ($sp) { $wins += $sp.sp.win } }
         foreach ($w in $wins) {
             $h = (New-Object System.Windows.Interop.WindowInteropHelper($w)).Handle
             if ($h -eq [IntPtr]::Zero) { continue }
@@ -2666,6 +2860,8 @@ function Stop-All {
     Despawn-Yarn
     Despawn-Fly
     Despawn-Ghost
+    End-Flood
+    Despawn-Bugs
     if ($notify) { $notify.Visible = $false; $notify.Dispose() }
     foreach ($c in (@($G.cats) + @($G.kits))) { $c.win.Close() }
     [System.Windows.Application]::Current.Shutdown()
@@ -2689,7 +2885,7 @@ function Set-CatSize($c, [double]$s) {
 function Set-AllSizes([double]$s) {
     foreach ($c in $G.cats) { Set-CatSize $c ($s * $c.rel) }
     foreach ($k in $G.kits) { Set-CatSize $k ($s * $k.rel) }
-    foreach ($sp in @($G.toy, $G.fly, $G.ghost)) {
+    foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts))) {
         if ($sp) {
             $sp.sp.size = $s; if ($sp -eq $G.ghost) { $sp.sp.size = $s * 1.5 }
             $sp.sp.cv.RenderTransform = New-Object System.Windows.Media.ScaleTransform($sp.sp.size, $sp.sp.size)
@@ -2747,7 +2943,7 @@ function Add-Kittens {
     $names = @('Kruemel', 'Fussel')
     $wa = $ref.screen.WorkingArea
     for ($i = 0; $i -lt 2; $i++) {
-        $k = New-Cat $furs[$i] ($ref.size * (0.55 - $i * 0.03)) $names[$i] ('Desktop-Katze-' + $names[$i]) '' 1.26
+        $k = New-Cat $furs[$i] ($ref.size * (0.55 - $i * 0.03)) $names[$i] ('Desktop-Katze-' + $names[$i]) '' 1.2
         $k.kit = $true
         $k.rel = 0.55 - $i * 0.03
         $k.screen = $ref.screen
@@ -2790,7 +2986,9 @@ function Build-CatMenu($c) {
     & $mk 'Wollknaeuel werfen' { Spawn-Yarn } | Out-Null
     & $mk 'Schmetterling schicken' { Spawn-Fly } | Out-Null
     $miGhost = & $mk 'Geist rufen' { Toggle-Ghost }
-    & $mk 'Spielzeug wegraeumen' { Despawn-Yarn; Despawn-Fly } | Out-Null
+    $miBugs = & $mk 'Schmetterlinge und Bienen' { Toggle-Bugs }
+    & $mk 'Tierflut! (1 Minute)' { Start-Flood } | Out-Null
+    & $mk 'Spielzeug wegraeumen' { Despawn-Yarn; Despawn-Fly; Despawn-Bugs } | Out-Null
     & $mk 'Schlafen' { Set-State $c 'sleep' (Rnd 10 25) }.GetNewClosure() | Out-Null
     & $mk 'Zoomies!' { Set-Chute $c $false; $c.y = 0; $c.vy = 0; Set-State $c 'run' (Rnd 4 6) }.GetNewClosure() | Out-Null
     [void]$cm.Items.Add((New-Object System.Windows.Controls.Separator))
@@ -2815,6 +3013,7 @@ function Build-CatMenu($c) {
         if ($G.kits.Count -gt 0) { $miKits.Header = 'Babykatzen wegschicken' }
         else { $miKits.Header = 'Babykatzen holen' }
         if ($G.ghost) { $miGhost.Header = 'Geist wegschicken' } else { $miGhost.Header = 'Geist rufen' }
+        if ($G.bugs.Count -gt 0) { $miBugs.Header = 'Schmetterlinge und Bienen wegschicken' } else { $miBugs.Header = 'Schmetterlinge und Bienen' }
     }.GetNewClosure())
     $c.root.ContextMenu = $cm
 }
@@ -2886,7 +3085,9 @@ $tChase = Add-TrayItem $menu 'Maus jagen' {
 Add-TrayItem $menu 'Wollknaeuel werfen' { Spawn-Yarn } | Out-Null
 Add-TrayItem $menu 'Schmetterling schicken' { Spawn-Fly } | Out-Null
 $tGhost = Add-TrayItem $menu 'Geist rufen' { Toggle-Ghost }
-Add-TrayItem $menu 'Spielzeug wegraeumen' { Despawn-Yarn; Despawn-Fly } | Out-Null
+$tBugs = Add-TrayItem $menu 'Schmetterlinge und Bienen' { Toggle-Bugs }
+Add-TrayItem $menu 'Tierflut! (1 Minute)' { Start-Flood } | Out-Null
+Add-TrayItem $menu 'Spielzeug wegraeumen' { Despawn-Yarn; Despawn-Fly; Despawn-Bugs } | Out-Null
 Add-TrayItem $menu 'Jetzt begruessen' {
     Abort-Social
     $G.soc.cool = 0.2
@@ -2926,6 +3127,7 @@ $menu.Add_Opening({
     if ($G.cats.Count -ge 2) { $tFriend.Text = 'Freundin wegschicken' } else { $tFriend.Text = 'Freundin holen' }
     if ($G.kits.Count -gt 0) { $tKits.Text = 'Babykatzen wegschicken' } else { $tKits.Text = 'Babykatzen holen' }
     if ($G.ghost) { $tGhost.Text = 'Geist wegschicken' } else { $tGhost.Text = 'Geist rufen' }
+    if ($G.bugs.Count -gt 0) { $tBugs.Text = 'Schmetterlinge und Bienen wegschicken' } else { $tBugs.Text = 'Schmetterlinge und Bienen' }
 })
 $notify.Add_MouseDoubleClick({ Spawn-Yarn })
 
@@ -3001,6 +3203,8 @@ Update-WindowPos $cat1
 if (-not $OhneFreundin) { Add-Friend }
 if ($MitBabykatzen) { Add-Kittens }
 if ($MitGeist) { Spawn-Ghost }
+if ($MitInsekten) { Spawn-Bugs }
+if ($MitFlut) { Start-Flood }
 # Debug: -Pose haelt alle Katzen in einer Pose fest
 if ($Pose) {
     if ($POSES.ContainsKey($Pose) -or $POSE_ALIAS.ContainsKey($Pose)) {
@@ -3036,6 +3240,8 @@ $timer.Add_Tick({
         Update-Yarn $dt
         Update-Fly $dt
         Update-Ghost $dt
+        Update-Bugs $dt
+        if ($G.floodT -gt 0) { $G.floodT -= $dt; if ($G.floodT -le 0) { End-Flood } }
 
         # Spielzeug taucht von allein auf - aber nicht, wenn niemand zusieht
         if (-not $G.away) {

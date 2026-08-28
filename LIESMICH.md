@@ -70,9 +70,18 @@ durch den Raum — quer über den Monitor der Katzen, auf halber Höhe, leicht p
 bleibt, bis du ihn wegschickst. Kommt er in die Nähe, machen die Katzen einen Buckel oder
 starren ihn gebannt an.
 
+**Schmetterlinge und Bienen:** Per Menü schwirrt ein kleiner Schwarm dauerhaft über den
+Monitor der Katzen — drei Schmetterlinge in Pastellfarben, die gemächlich in Wellen
+flattern, und zwei Bienen, die flott zickzacken. Die Katzen schauen ihnen gelegentlich nach.
+
+**Tierflut! (1 Minute):** Ein Knopf im Menü füllt den Bildschirm eine Minute lang mit
+sechs Gast-Kätzchen, drei Geistern, zehn Insekten und einem Wollknäuel — die Gäste
+mischen sich unter die Großen (und ärgern sie) und verschwinden nach 60 Sekunden von
+selbst wieder.
+
 **Alles per Rechtsklick:** Im Menü jeder Katze (auch der Kätzchen) lassen sich Freundin,
-Babykatzen und Geist holen und wegschicken, Wollknäuel und Schmetterling schicken oder
-mit *Spielzeug wegräumen* entfernen.
+Babykatzen, Geist und Schwarm holen und wegschicken, Wollknäuel und Schmetterling schicken
+oder mit *Spielzeug wegräumen* entfernen; dort startet auch die Tierflut.
 
 **Maus jagen:** Sie rennen dem Mauszeiger nach, schlagen mit der Pfote danach und springen
 hoch, wenn er über ihnen ist. Auf einem anderen Monitor rennen sie zum Rand und springen
