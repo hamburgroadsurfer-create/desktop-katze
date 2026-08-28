@@ -371,11 +371,11 @@ $SIL_DEF = @(
     @(86,161,0,1,0),                                                            # Bauch (hoeher = schlanker)
     @(100,167,3,1,0),  @(100,179.5,3,1,0), @(112,182,3,1,0), @(124,179.5,3,1,0), @(124,167,3,1,0), # Vorderbein (runde Tatze)
     @(132,160,0,0.6,0,0.45),                                                    # Brust (folgt dem Kopf zu 45 %)
-    @(147,152.5,1,1,0), @(156.5,137,1,1,0), @(155,120,1,1,0),                    # Kinn, Pausbacke, Gesicht (symmetrisch zum Hinterkopf)
+    @(145,150,1,1,0),  @(153,134,1,1,0),  @(154,120,1,1,0),                      # Kinn, Wange, Gesicht (symmetrisch zum Hinterkopf)
     @(148,113,1,0.55,0), @(144,96,1,0.5,1), @(138,101,1,0.55,0),                # Ohr rechts (winzig, weich)
     @(128,100,1,1,0),                                                           # Kopf oben
     @(118,101,1,0.55,0), @(112,96,1,0.5,-1), @(108,113,1,0.55,0),               # Ohr links (winzig, weich)
-    @(99.5,121.5,1,1,0),                                                        # Hinterkopf (Pausbacke, spiegelt die Gesichtsseite)
+    @(102,121,1,1,0),                                                           # Hinterkopf (runder, leichte Wange)
     @(90,120.5,0,0.6,0,0.4), @(66,120,0,1,0,0.25)                              # Nacken (40 % Kopf), Ruecken (25 %) - tiefer = schlanker
 )
 $SIL_N = $SIL_DEF.Count
@@ -430,7 +430,7 @@ function New-Eye($cx, $cy, $r) {
 # ============================================================================
 #  Eine Katze bauen: Fenster + Rig + Zustand
 # ============================================================================
-function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [string]$acc, [double]$headK = 1.17) {
+function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [string]$acc, [double]$headK = 1.14) {
     $c = @{
         name = $name; fur = $fur; size = $size; acc = $acc
         col = (Get-Palette $fur); fill = @{}; stroke = @{}
@@ -583,7 +583,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $c.eyeN = New-Eye ($FX + 7.5) 133 2.9; [void]$headG.Children.Add($c.eyeN.el)
     [void]$c.eyeN.el.Children.Add((New-Ell ($FX + 6.6) 131.9 1.0 1.0 'white' $null 0))
     foreach ($bx in @(($FX - 13), ($FX + 13))) {
-        $cheek = New-Ell $bx 137.5 4.0 2.5 'inner' $null 0; $cheek.Opacity = 0.3
+        $cheek = New-Ell $bx 137.5 3.4 2.1 'inner' $null 0; $cheek.Opacity = 0.25
         [void]$headG.Children.Add($cheek)
     }
 
@@ -2628,7 +2628,7 @@ function Add-Kittens {
     $names = @('Kruemel', 'Fussel')
     $wa = $ref.screen.WorkingArea
     for ($i = 0; $i -lt 2; $i++) {
-        $k = New-Cat $furs[$i] ($ref.size * (0.55 - $i * 0.03)) $names[$i] ('Desktop-Katze-' + $names[$i]) '' 1.3
+        $k = New-Cat $furs[$i] ($ref.size * (0.55 - $i * 0.03)) $names[$i] ('Desktop-Katze-' + $names[$i]) '' 1.26
         $k.kit = $true
         $k.rel = 0.55 - $i * 0.03
         $k.screen = $ref.screen
