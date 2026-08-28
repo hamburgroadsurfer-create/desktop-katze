@@ -65,6 +65,15 @@ das Knäuel rollt mit Drehung und Reibung weg und prallt an den Bildschirmrände
 Sie setzen sich hin, verfolgen ihn mit dem Kopf und springen gelegentlich danach — dann
 flieht er kurz nach oben.
 
+**Geist:** Per Menü (*Geist rufen*) schwebt ein kleiner durchsichtiger Geist gemütlich
+durch den Raum — quer über den Monitor der Katzen, auf halber Höhe, leicht pulsierend. Er
+bleibt, bis du ihn wegschickst. Kommt er in die Nähe, machen die Katzen einen Buckel oder
+starren ihn gebannt an.
+
+**Alles per Rechtsklick:** Im Menü jeder Katze (auch der Kätzchen) lassen sich Freundin,
+Babykatzen und Geist holen und wegschicken, Wollknäuel und Schmetterling schicken oder
+mit *Spielzeug wegräumen* entfernen.
+
 **Maus jagen:** Sie rennen dem Mauszeiger nach, schlagen mit der Pfote danach und springen
 hoch, wenn er über ihnen ist. Auf einem anderen Monitor rennen sie zum Rand und springen
 hinüber.
@@ -102,7 +111,8 @@ Weiterlaufen). Beide haben eigene Zeitgeber, atmen also nicht im Gleichschritt.
   sich und machen weiter.
 * **Nie „weg":** Wechselst du den virtuellen Desktop (Win+Ctrl+Pfeil), kommen die Katzen
   mit; nach „Desktop anzeigen" (Win+D) tauchen sie wieder auf; arbeitest du länger als
-  anderthalb Minuten auf einem anderen Monitor, kommen sie herüber. Maximierte Fenster
+  fünf Minuten auf einem anderen Monitor, ziehen sie sichtbar um — sie laufen zum Rand
+  und kommen auf dem anderen Monitor hereingelaufen. Maximierte Fenster
   gelten nicht als Vollbild. Das Vollbild-Versteck lässt sich im Tray abschalten
   (*Bei Vollbild verstecken*). Verstecken, Zeigen und Umzüge stehen mit Zeitstempel in
   `%TEMP%\desktop-katze-ereignisse.log`.

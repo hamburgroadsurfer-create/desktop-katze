@@ -16,7 +16,8 @@ param(
     [string]$Pose = '',
     [string]$Sheet = '',
     [switch]$Fast,
-    [switch]$MitBabykatzen
+    [switch]$MitBabykatzen,
+    [switch]$MitGeist
 )
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase,
@@ -70,7 +71,7 @@ public static class CatNative {
         StringBuilder cn = new StringBuilder(64);
         GetClassName(h, cn, 64);
         string k = cn.ToString();
-        if (k == "Progman" || k == "WorkerW" || k == "Shell_TrayWnd" || k == "Windows.UI.Core.CoreWindow") return false;
+        if (k == "Progman" || k == "WorkerW" || k == "Shell_TrayWnd" || k == "Windows.UI.Core.CoreWindow" || k == "XamlExplorerHostIslandWindow") return false;   // Startmenue/Task-Ansicht
         int st = GetWindowLong(h, -16);                       // GWL_STYLE
         if ((st & 0x01000000) != 0) return false;             // WS_MAXIMIZE: normales, maximiertes Fenster
         if ((st & 0x00C00000) == 0x00C00000) return false;    // WS_CAPTION: hat Titelleiste, kein Vollbild
@@ -200,6 +201,7 @@ $G = @{
     cats = New-Object System.Collections.ArrayList
     kits = New-Object System.Collections.ArrayList   # Babykatzen (auf Bedarf)
     toy = $null; fly = $null      # Wollknaeuel, Schmetterling
+    ghost = $null                 # Geist (auf Bedarf)
     toyT = 45.0; flyT = 85.0
     soc = @{ mode = 'none'; t = 0.0; cool = 60.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
     hkT = 1.0                     # Zaehler fuer die Wartungsroutine
@@ -447,7 +449,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         look = 0.0; lookY = 0.0
         locked = $false; meetX = 0.0
         kit = $false; target = $null; chuteOn = $false; headK = $headK
-        rel = 1.0; gripDX = 0.0; gripDY = 0.0
+        rel = 1.0; gripDX = 0.0; gripDY = 0.0; migrate = $null
         svx = 0.0; fvis = 1.0; earT = (Rnd 2 6); earFlick = 0.0; hopN = 0
         pose = $null; base = $null
     }
@@ -862,7 +864,7 @@ $POSES = @{
 
 # Zustaende, die sich eine Pose mit einem anderen teilen
 $POSE_ALIAS = @{ toychase='chase'; approach='walk'; flee='run'; tagchase='chase'; nuzzle='groom'
-                 pester='chase'; kitbat='bat' }
+                 pester='chase'; kitbat='bat'; migrate='run' }
 
 # ============================================================================
 #  Partikel (Herzchen, Z-Z-Z, "miau", Staub)
@@ -1145,6 +1147,61 @@ function Update-Fly($dt) {
 }
 
 # ============================================================================
+#  Geist: schwebt gemuetlich durch den Raum - quer ueber den Monitor der Katzen
+#  auf halber Hoehe, pulsiert leicht durchsichtig. Bleibt, bis man ihn wegschickt.
+# ============================================================================
+function New-Ghost($size) {
+    $sp = New-SpriteWindow 64 76 'Katzen-Geist' $size
+    $body = New-Object System.Windows.Shapes.Path
+    $body.Data = [System.Windows.Media.Geometry]::Parse('M 10,34 C 10,6 54,6 54,34 L 54,62 C 50,55 45,55 42,62 C 39,69 34,69 32,62 C 29,55 24,55 22,62 C 19,69 13,69 10,62 Z')
+    $body.Fill = New-Brush '#F4F6FF'
+    [void]$sp.cv.Children.Add($body)
+    $gdark = New-Brush '#3E4660'
+    [void]$sp.cv.Children.Add((New-Oval 24 32 3.2 4.2 0 $gdark $null 0))
+    [void]$sp.cv.Children.Add((New-Oval 40 32 3.2 4.2 0 $gdark $null 0))
+    [void]$sp.cv.Children.Add((New-Oval 32 43 2.4 3.0 0 $gdark $null 0))
+    foreach ($bx in @(17, 47)) {
+        $bl = New-Oval $bx 39 3.6 2.2 0 (New-Brush '#F4B3C0') $null 0
+        $bl.Opacity = 0.5
+        [void]$sp.cv.Children.Add($bl)
+    }
+    $sp.win.Opacity = 0.85
+    $sp
+}
+
+function Spawn-Ghost {
+    if ($G.ghost -or $G.cats.Count -eq 0) { return }
+    $ref = $G.cats[0]
+    $wa = $ref.screen.WorkingArea
+    $G.ghost = @{ sp = (New-Ghost $ref.size); x = [double]($wa.Left + $wa.Width * 0.5); y = 0.0
+                  ph = (Rnd 0 6); vx = ((Rnd 28 44) * $ref.pxs) }
+    if ((Rnd 0 1) -lt 0.5) { $G.ghost.vx = -$G.ghost.vx }
+    Log-Event 'Geist gerufen'
+}
+
+function Despawn-Ghost {
+    if ($G.ghost) { $G.ghost.sp.win.Close(); $G.ghost = $null; Log-Event 'Geist weggeschickt' }
+}
+
+function Toggle-Ghost { if ($G.ghost) { Despawn-Ghost } else { Spawn-Ghost } }
+
+function Update-Ghost($dt) {
+    if (-not $G.ghost -or $G.cats.Count -eq 0) { return }
+    $gh = $G.ghost
+    $ref = $G.cats[0]
+    $wa = $ref.screen.WorkingArea
+    $gh.ph += $dt
+    $gh.x += $gh.vx * $dt
+    $gm = 60 * $ref.pxs
+    if ($gh.x -lt ($wa.Left + $gm))  { $gh.x = $wa.Left + $gm;  $gh.vx = [Math]::Abs($gh.vx) }
+    if ($gh.x -gt ($wa.Right - $gm)) { $gh.x = $wa.Right - $gm; $gh.vx = -[Math]::Abs($gh.vx) }
+    # langsame grosse Welle ueber die Raumhoehe plus kleines Wippen
+    $gh.y = $wa.Top + $wa.Height * 0.45 + (0.22 * $wa.Height) * [Math]::Sin($gh.ph * 0.35) + 18 * $ref.pxs * [Math]::Sin($gh.ph * 2.1)
+    Set-SpritePos $gh.sp $gh.x $gh.y
+    $gh.sp.win.Opacity = 0.72 + 0.2 * [Math]::Sin($gh.ph * 1.3)
+}
+
+# ============================================================================
 #  Bildschirm / Position
 # ============================================================================
 function Get-ScreenAt($px, $py) {
@@ -1190,7 +1247,7 @@ function Set-State($c, [string]$name, [double]$dur) {
     $pn = $name
     if ($POSE_ALIAS.ContainsKey($name)) { $pn = $POSE_ALIAS[$name] }
     if ($POSES.ContainsKey($pn)) { $c.base = $POSES[$pn] }
-    if (@('walk','run','chase','toychase','approach','flee','tagchase','pester') -contains $name) {
+    if (@('walk','run','chase','toychase','approach','flee','tagchase','pester','migrate') -contains $name) {
         $c.phase = Rnd 0 6.28
     }
 }
@@ -1206,6 +1263,7 @@ function Am-I-Closest($c, $x) {
 # Zustandswahl der Babykatzen: hauptsaechlich die Grossen aergern, dazwischen
 # Zoomies, Anschleichen und kurze Nickerchen
 function Next-KitState($c) {
+    if ($c.chase) { Set-State $c 'chase' (Rnd 5 11); return }
     switch ($c.state) {
         'crouch'  { Set-State $c 'leap' 0.9; $c.vy = 265 * $c.size; $c.vx = 250 * $c.facing * $c.pxs; return }
         'sleep'   { Set-State $c 'shake' 1.1; return }
@@ -1282,7 +1340,7 @@ function Next-State($c) {
             return
         }
         'toychase' { if (-not $G.toy) { Set-State $c 'idle' (Rnd 1.5 3); return } }
-        'watch'    { if (-not $G.fly) { Set-State $c 'sit' (Rnd 2 4); return } }
+        'watch'    { if (-not $G.fly -and -not $G.ghost) { Set-State $c 'sit' (Rnd 2 4); return } }
         'land'     {
             if ($G.toy -and (Am-I-Closest $c $G.toy.x)) { Set-State $c 'toychase' (Rnd 3 7); return }
             if ((Rnd 0 1) -lt 0.45) { Set-State $c 'shake' 1.1; return }
@@ -1293,6 +1351,13 @@ function Next-State($c) {
     # (Update-Housekeeping weckt sie dann mit 'shake')
     if ($G.away) {
         if ((Rnd 0 1) -lt 0.6) { Set-State $c 'sleep' 9999 } else { Set-State $c 'curl' 9999 }
+        return
+    }
+
+    # ein Geist in der Naehe? Buckel machen oder gebannt hinschauen
+    if ($G.ghost -and [Math]::Abs($G.ghost.x - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.35) {
+        if ($G.ghost.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
+        if ((Rnd 0 1) -lt 0.4) { Set-State $c 'arch' (Rnd 2 3.5) } else { Set-State $c 'watch' (Rnd 3 6) }
         return
     }
 
@@ -1478,6 +1543,7 @@ function Update-Behaviour($c, $dt) {
         }
         'watch' {
             $c.vx = 0
+            if (-not $G.fly -and $G.ghost) { if ($G.ghost.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 } }
             if ($G.fly) {
                 $dxf = $G.fly.x - $c.x
                 if ([Math]::Abs($dxf) -gt 26 * $c.pxs) {
@@ -1546,6 +1612,28 @@ function Update-Behaviour($c, $dt) {
             if ($c.heartT -le 0) { $c.heartT = Rnd 1.8 3.0; Add-Particle $c 'heart' (Rnd 112 148) 90 }
         }
         'wiggle' { $c.vx = 0 }
+        'migrate' {
+            # Umzug auf einen anderen Monitor: zum Rand rennen, hinueberwechseln
+            # und auf der anderen Seite hereinlaufen (statt zu teleportieren)
+            $tgt = $c.migrate
+            if (-not $tgt) { $c.vx = 0; Set-State $c 'sit' (Rnd 2 4) }
+            else {
+                $wa2 = $c.screen.WorkingArea
+                $dir = 1.0; if ($tgt.Bounds.Left -lt $c.screen.Bounds.Left) { $dir = -1.0 }
+                $c.facing = $dir
+                $c.vx = 200 * $dir * $c.pxs
+                $c.phase += $dt * 15
+                $edge = if ($dir -gt 0) { $wa2.Right - 40 * $c.pxs } else { $wa2.Left + 40 * $c.pxs }
+                if (($dir -gt 0 -and $c.x -ge $edge) -or ($dir -lt 0 -and $c.x -le $edge)) {
+                    $twa = $tgt.WorkingArea
+                    $c.screen = $tgt; $c.groundY = [double]$twa.Bottom; $c.y = 0; $c.vy = 0
+                    $c.x = if ($dir -gt 0) { $twa.Left + 60 * $c.pxs } else { $twa.Right - 60 * $c.pxs }
+                    $c.svx = $c.vx
+                    $c.migrate = $null
+                    Set-State $c 'walk' (Rnd 3 6)
+                }
+            }
+        }
         # --- Babykatzen: die Grossen aergern -------------------------------
         'pester' {
             $tgt = $c.target
@@ -1669,6 +1757,8 @@ function Update-Behaviour($c, $dt) {
     $ltx = $null; $lty = 0.0
     if ($c.state -eq 'watch' -and $G.fly) {
         $ltx = $G.fly.x; $lty = $G.fly.y
+    } elseif ($c.state -eq 'watch' -and $G.ghost) {
+        $ltx = $G.ghost.x; $lty = $G.ghost.y
     } elseif (@('greet','nuzzle') -contains $c.state) {
         $p = Get-Partner $c
         if ($p) { $ltx = $p.x; $lty = $p.groundY - 70 * $p.pxs }
@@ -1770,7 +1860,7 @@ function Update-Physics($c, $dt) {
 # ============================================================================
 #  Sozialverhalten: begruessen, fangen spielen, zusammen sitzen
 # ============================================================================
-$SOC_BUSY = @('drag','pet','fall','leap','land','toychase','bat','chase','bunt','hop','purr')
+$SOC_BUSY = @('drag','pet','fall','leap','land','toychase','bat','chase','bunt','hop','purr','migrate')
 
 function Cat-Busy($c) { $c.chase -or ($SOC_BUSY -contains $c.state) }
 
@@ -2441,7 +2531,7 @@ function Show-Cats([bool]$show) {
     foreach ($c in (@($G.cats) + @($G.kits))) {
         if ($show) { $c.win.Show() } else { if ($c.dragging) { $c.root.ReleaseMouseCapture() }; $c.win.Hide() }
     }
-    foreach ($sp in @($G.toy, $G.fly)) {
+    foreach ($sp in @($G.toy, $G.fly, $G.ghost)) {
         if ($sp) { if ($show) { $sp.sp.win.Show() } else { $sp.sp.win.Hide() } }
     }
 }
@@ -2508,7 +2598,7 @@ function Update-Housekeeping($dt) {
         $moved = 0
         $wins = @()
         foreach ($c in (@($G.cats) + @($G.kits))) { $wins += $c.win }
-        foreach ($sp in @($G.toy, $G.fly)) { if ($sp) { $wins += $sp.sp.win } }
+        foreach ($sp in @($G.toy, $G.fly, $G.ghost)) { if ($sp) { $wins += $sp.sp.win } }
         foreach ($w in $wins) {
             $h = (New-Object System.Windows.Interop.WindowInteropHelper($w)).Handle
             if ($h -eq [IntPtr]::Zero) { continue }
@@ -2518,24 +2608,21 @@ function Update-Housekeeping($dt) {
         if ($moved -gt 0) { Log-Event "Katzen zurueckgeholt ($moved Fenster; Desktopwechsel oder Win+D)" }
     }
 
-    # 6) Arbeitest du laenger auf einem anderen Monitor? Dann kommen die Katzen
-    #    nach anderthalb Minuten herueber, statt dort "verschwunden" zu sein.
+    # 6) Arbeitest du laenger (5 min) auf einem anderen Monitor? Dann ziehen die
+    #    Katzen sichtbar um: zum Rand laufen, hinueber, drueben hereinkommen.
     if (-not $G.away -and -not $G.hidden -and $G.cats.Count -gt 0 -and $null -ne $G.cats[0].screen) {
         $cpos = [System.Windows.Forms.Cursor]::Position
         $cs = Get-ScreenAt $cpos.X $cpos.Y
         $busy = $false
-        foreach ($c in $G.cats) { if ($c.dragging -or $c.chase) { $busy = $true } }
+        foreach ($c in $G.cats) { if ($c.dragging -or $c.chase -or $c.state -eq 'migrate') { $busy = $true } }
         if ($cs.DeviceName -ne $G.cats[0].screen.DeviceName -and -not $busy) { $G.otherT += 1.2 } else { $G.otherT = 0.0 }
-        if ($G.otherT -gt 90) {
+        if ($G.otherT -gt 300) {
             $G.otherT = 0.0
             Abort-Social
-            $i = 0
             foreach ($c in (@($G.cats) + @($G.kits))) {
-                Move-ToScreen $c $cs ($i * 160 * $c.pxs - 120 * $c.pxs)
-                Set-State $c 'walk' (Rnd 3 6)
-                $i++
+                if ($c.screen.DeviceName -ne $cs.DeviceName) { $c.migrate = $cs; Set-State $c 'migrate' 99 }
             }
-            Log-Event "Katzen folgen auf Monitor $($cs.DeviceName)"
+            Log-Event "Katzen ziehen um nach Monitor $($cs.DeviceName)"
         }
     }
 }
@@ -2547,6 +2634,7 @@ function Stop-All {
     $timer.Stop()
     Despawn-Yarn
     Despawn-Fly
+    Despawn-Ghost
     if ($notify) { $notify.Visible = $false; $notify.Dispose() }
     foreach ($c in (@($G.cats) + @($G.kits))) { $c.win.Close() }
     [System.Windows.Application]::Current.Shutdown()
@@ -2570,7 +2658,7 @@ function Set-CatSize($c, [double]$s) {
 function Set-AllSizes([double]$s) {
     foreach ($c in $G.cats) { Set-CatSize $c ($s * $c.rel) }
     foreach ($k in $G.kits) { Set-CatSize $k ($s * $k.rel) }
-    foreach ($sp in @($G.toy, $G.fly)) {
+    foreach ($sp in @($G.toy, $G.fly, $G.ghost)) {
         if ($sp) {
             $sp.sp.size = $s
             $sp.sp.cv.RenderTransform = New-Object System.Windows.Media.ScaleTransform($s, $s)
@@ -2637,6 +2725,7 @@ function Add-Kittens {
         if ($k.x -lt $wa.Left + 50)  { $k.x = $wa.Left + 50 }
         if ($k.x -gt $wa.Right - 50) { $k.x = $wa.Right - 50 }
         [void]$G.kits.Add($k)
+        Build-CatMenu $k
         if (-not $G.hidden) { $k.win.Show() }
         Update-WindowPos $k
         Add-Particle $k 'dust' ($CAT_CX - 8) ($GROUND - 12)
@@ -2669,6 +2758,8 @@ function Build-CatMenu($c) {
     $miChase.IsCheckable = $true
     & $mk 'Wollknaeuel werfen' { Spawn-Yarn } | Out-Null
     & $mk 'Schmetterling schicken' { Spawn-Fly } | Out-Null
+    $miGhost = & $mk 'Geist rufen' { Toggle-Ghost }
+    & $mk 'Spielzeug wegraeumen' { Despawn-Yarn; Despawn-Fly } | Out-Null
     & $mk 'Schlafen' { Set-State $c 'sleep' (Rnd 10 25) }.GetNewClosure() | Out-Null
     & $mk 'Zoomies!' { Set-Chute $c $false; $c.y = 0; $c.vy = 0; Set-State $c 'run' (Rnd 4 6) }.GetNewClosure() | Out-Null
     [void]$cm.Items.Add((New-Object System.Windows.Controls.Separator))
@@ -2692,6 +2783,7 @@ function Build-CatMenu($c) {
         else { $miFriend.Header = 'Freundin holen' }
         if ($G.kits.Count -gt 0) { $miKits.Header = 'Babykatzen wegschicken' }
         else { $miKits.Header = 'Babykatzen holen' }
+        if ($G.ghost) { $miGhost.Header = 'Geist wegschicken' } else { $miGhost.Header = 'Geist rufen' }
     }.GetNewClosure())
     $c.root.ContextMenu = $cm
 }
@@ -2762,6 +2854,8 @@ $tChase = Add-TrayItem $menu 'Maus jagen' {
 }
 Add-TrayItem $menu 'Wollknaeuel werfen' { Spawn-Yarn } | Out-Null
 Add-TrayItem $menu 'Schmetterling schicken' { Spawn-Fly } | Out-Null
+$tGhost = Add-TrayItem $menu 'Geist rufen' { Toggle-Ghost }
+Add-TrayItem $menu 'Spielzeug wegraeumen' { Despawn-Yarn; Despawn-Fly } | Out-Null
 Add-TrayItem $menu 'Jetzt begruessen' {
     Abort-Social
     $G.soc.cool = 0.2
@@ -2800,6 +2894,7 @@ $menu.Add_Opening({
     if ($G.paused) { $tPause.Text = 'Weiter' } else { $tPause.Text = 'Pause' }
     if ($G.cats.Count -ge 2) { $tFriend.Text = 'Freundin wegschicken' } else { $tFriend.Text = 'Freundin holen' }
     if ($G.kits.Count -gt 0) { $tKits.Text = 'Babykatzen wegschicken' } else { $tKits.Text = 'Babykatzen holen' }
+    if ($G.ghost) { $tGhost.Text = 'Geist wegschicken' } else { $tGhost.Text = 'Geist rufen' }
 })
 $notify.Add_MouseDoubleClick({ Spawn-Yarn })
 
@@ -2874,6 +2969,7 @@ Update-WindowPos $cat1
 
 if (-not $OhneFreundin) { Add-Friend }
 if ($MitBabykatzen) { Add-Kittens }
+if ($MitGeist) { Spawn-Ghost }
 # Debug: -Pose haelt alle Katzen in einer Pose fest
 if ($Pose) {
     if ($POSES.ContainsKey($Pose) -or $POSE_ALIAS.ContainsKey($Pose)) {
@@ -2908,6 +3004,7 @@ $timer.Add_Tick({
         }
         Update-Yarn $dt
         Update-Fly $dt
+        Update-Ghost $dt
 
         # Spielzeug taucht von allein auf - aber nicht, wenn niemand zusieht
         if (-not $G.away) {
