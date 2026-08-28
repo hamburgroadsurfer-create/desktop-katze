@@ -366,16 +366,16 @@ function New-Foot($x, $y, $w, $h, $furRole) {
 #  dem Kopf anteilig, damit die Kontur am Hals nicht faltet
 # ============================================================================
 $SIL_DEF = @(
-    @(52,122,0,1,0),   @(44,140,0,1,0),   @(46,156,0,1,0),                       # Ruecken hinten, Po, unten hinten (schlank)
-    @(48,167,2,1,0),   @(49,178,2,1,0),   @(60,182,2,1,0),  @(71,178,2,1,0), @(72,167,2,1,0),   # Hinterbein
+    @(52,122,0,1,0),   @(43,141.5,0,1,0), @(45,157.5,0,1,0),                     # Ruecken hinten, Po, unten hinten (schlank, rund)
+    @(48,167,2,1,0),   @(48,179.5,2,1,0), @(60,182,2,1,0),  @(72,179.5,2,1,0), @(72,167,2,1,0),   # Hinterbein (runde Tatze)
     @(86,161,0,1,0),                                                            # Bauch (hoeher = schlanker)
-    @(100,167,3,1,0),  @(101,178,3,1,0),  @(112,182,3,1,0), @(123,178,3,1,0), @(124,167,3,1,0), # Vorderbein
+    @(100,167,3,1,0),  @(100,179.5,3,1,0), @(112,182,3,1,0), @(124,179.5,3,1,0), @(124,167,3,1,0), # Vorderbein (runde Tatze)
     @(132,160,0,0.6,0,0.45),                                                    # Brust (folgt dem Kopf zu 45 %)
-    @(145,150,1,1,0),  @(153,134,1,1,0),  @(154,120,1,1,0),                      # Kinn, Wange, Gesicht (symmetrisch zum Hinterkopf)
-    @(148,113,1,0.45,0), @(144,95,1,0.3,1), @(138,101,1,0.45,0),                # Ohr rechts (winzig, rund)
+    @(147,152.5,1,1,0), @(156.5,137,1,1,0), @(155,120,1,1,0),                    # Kinn, Pausbacke, Gesicht (symmetrisch zum Hinterkopf)
+    @(148,113,1,0.55,0), @(144,96,1,0.5,1), @(138,101,1,0.55,0),                # Ohr rechts (winzig, weich)
     @(128,100,1,1,0),                                                           # Kopf oben
-    @(118,101,1,0.45,0), @(112,95,1,0.3,-1), @(108,113,1,0.45,0),               # Ohr links (winzig, rund)
-    @(102,121,1,1,0),                                                           # Hinterkopf (runder, leichte Wange)
+    @(118,101,1,0.55,0), @(112,96,1,0.5,-1), @(108,113,1,0.55,0),               # Ohr links (winzig, weich)
+    @(99.5,121.5,1,1,0),                                                        # Hinterkopf (Pausbacke, spiegelt die Gesichtsseite)
     @(90,120.5,0,0.6,0,0.4), @(66,120,0,1,0,0.25)                              # Nacken (40 % Kopf), Ruecken (25 %) - tiefer = schlanker
 )
 $SIL_N = $SIL_DEF.Count
@@ -430,7 +430,7 @@ function New-Eye($cx, $cy, $r) {
 # ============================================================================
 #  Eine Katze bauen: Fenster + Rig + Zustand
 # ============================================================================
-function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [string]$acc, [double]$headK = 1.14) {
+function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [string]$acc, [double]$headK = 1.17) {
     $c = @{
         name = $name; fur = $fur; size = $size; acc = $acc
         col = (Get-Palette $fur); fill = @{}; stroke = @{}
@@ -518,10 +518,10 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $tail.StrokeThickness = 17
     $tail.StrokeStartLineCap = 'Round'; $tail.StrokeEndLineCap = 'Round'; $tail.StrokeLineJoin = 'Round'
     [void]$bodyC.Children.Add($tail)
-    $c.tailTip = New-Ell 0 0 9.5 9.5 'fur' $null 0     # sanft dickere, runde Spitze = Fluff
+    $c.tailTip = New-Ell 0 0 10.5 10.5 'fur' $null 0   # sanft dickere, runde Spitze = Fluff
     [void]$bodyC.Children.Add($c.tailTip)
-    $c.legBF = New-Foot 52 152 17 26 'fur';  [void]$bodyC.Children.Add($c.legBF.el)
-    $c.legFF = New-Foot 104 152 17 26 'fur'; [void]$bodyC.Children.Add($c.legFF.el)
+    $c.legBF = New-Foot 52 152 19 27.5 'fur';  [void]$bodyC.Children.Add($c.legBF.el)
+    $c.legFF = New-Foot 104 152 19 27.5 'fur'; [void]$bodyC.Children.Add($c.legFF.el)
 
     $c.bodyScl = New-Object System.Windows.Media.ScaleTransform(1, 1)
     $c.bodyScl.CenterX = $BCX; $c.bodyScl.CenterY = $GROUND
@@ -583,7 +583,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $c.eyeN = New-Eye ($FX + 7.5) 133 2.9; [void]$headG.Children.Add($c.eyeN.el)
     [void]$c.eyeN.el.Children.Add((New-Ell ($FX + 6.6) 131.9 1.0 1.0 'white' $null 0))
     foreach ($bx in @(($FX - 13), ($FX + 13))) {
-        $cheek = New-Ell $bx 137.5 3.4 2.1 'inner' $null 0; $cheek.Opacity = 0.25
+        $cheek = New-Ell $bx 137.5 4.0 2.5 'inner' $null 0; $cheek.Opacity = 0.3
         [void]$headG.Children.Add($cheek)
     }
 
@@ -795,10 +795,10 @@ $POSES = @{
     # Loaf: flach und breit, Pfoetchen ganz eingezogen, Bauch auf dem Boden
     # (bdy = (182 - 161) * bsy: die skalierte Bauchlinie sinkt bis zur Bodenlinie 182)
     sleep  = NewPose @{ bdy=16.8; bsx=1.14; bsy=0.80; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
-                        hdx=2; hdy=9; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
+                        hdx=2; hdy=5; hrot=0; tailA=-25; tailC=1.5; eye=0.05; ear=-6 }
     # zusammengerollt: kompakt, alle Pfoetchen weg, Kopf tief
     curl   = NewPose @{ bdy=18.9; bsx=0.96; bsy=0.90; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
-                        hdx=-8; hdy=10; hrot=16; tailA=-30; tailC=1.5; eye=0.05; ear=-10 }
+                        hdx=-8; hdy=7; hrot=16; tailA=-30; tailC=1.5; eye=0.05; ear=-10 }
     groom  = PoseFrom $SIT @{ pFNx=12; pFNy=-12; hdx=-8; hdy=-8; hrot=40; tailA=10; tailC=0.9; eye=0.25 }
     stretch= NewPose @{ bsx=1.18; bsy=0.88; pFNx=8; pFFx=6; pBNx=-6; pBFx=-5;
                         hdx=4; hdy=9; hrot=12; tailA=74; tailC=0.2; eye=0.3 }
@@ -813,7 +813,10 @@ $POSES = @{
                         pBNx=-7; pBNy=-8; pBFx=-6; pBFy=-7; tailA=82; tailC=-0.5; ear=-6 }
     drag   = NewPose @{ brot=6; bsy=1.04; pFNx=3; pFNy=-6; pFFx=2; pFFy=-5; pBNx=-3; pBNy=-6; pBFx=-2; pBFy=-5;
                         tailA=100; tailC=-0.4; ear=-11 }
-    pet    = PoseFrom $SIT @{ hdy=-20; hrot=16; tailA=86; tailC=0.26; eye=0.08; ear=5 }
+    # Kuscheldruck: knautscht unter der Hand weich zusammen (flacher, eine Spur
+    # breiter), Kopf sinkt leicht mit und schmiegt sich an, Augen zu Gluecksboegen
+    pet    = NewPose @{ bsx=1.07; bsy=0.90; hdx=2; hdy=3; hrot=-6; pFNx=3; pFFx=2; pBNx=-2; pBFx=-1;
+                        tailA=84; tailC=0.3; eye=0.06; ear=-8 }
     chase  = NewPose @{ bsy=0.94; hdy=3; tailA=12; tailC=0.5; ear=-5 }
     yawn   = PoseFrom $SIT @{ hdx=-8; hdy=-20; hrot=2; tailA=12; tailC=0.9; eye=0.06; mouth=1.0; ear=-3 }
     meow   = PoseFrom $SIT @{ hdx=-8; hdy=-18; hrot=8; tailA=20; tailC=0.85; mouth=0.7 }
@@ -841,7 +844,7 @@ $POSES = @{
     # Katzenbrot: wie 'sleep' flach am Boden, aber wach - Augen offen, Kopf
     # ein Stueck hoeher, Oehrchen aufgestellt, Schwanz um den Koerper gelegt
     loaf   = NewPose @{ bdy=17.2; bsx=1.12; bsy=0.82; pFNy=-17; pFFy=-17; pBNy=-17; pBFy=-17;
-                        hdx=1; hdy=5; hrot=0; tailA=-25; tailC=1.5; eye=1.0; ear=2 }
+                        hdx=1; hdy=2; hrot=0; tailA=-25; tailC=1.5; eye=1.0; ear=2 }
     # Freudenhopser: aufrecht, Schwanz hoch, froehlich offenes Maeulchen
     hop    = NewPose @{ tailA=62; tailC=0.3; ear=4; mouth=0.3 }
     # Kopf schief legen (Gesicht ist frontal, hrot liest sich als Neigen)
@@ -1692,7 +1695,7 @@ function Update-Behaviour($c, $dt) {
     # Herzchen beim Streicheln
     if ($c.state -eq 'pet') {
         $c.heartT -= $dt
-        if ($c.heartT -le 0) { $c.heartT = Rnd 0.35 0.7; Add-Particle $c 'heart' (Rnd 108 148) 92 }
+        if ($c.heartT -le 0) { $c.heartT = Rnd 0.22 0.45; Add-Particle $c 'heart' (Rnd 108 148) 92 }
     }
     # "miau"
     if ($c.state -eq 'meow') {
@@ -1956,8 +1959,8 @@ function Set-Tail($c, $ox, $oy, $a, $curl) {
         $c.tailPts[$i] = $pt
         $c.tailPts2[$i] = $pt
     }
-    [System.Windows.Controls.Canvas]::SetLeft($c.tailTip, $p3x - 9.1)
-    [System.Windows.Controls.Canvas]::SetTop($c.tailTip, $p3y - 9.1)
+    [System.Windows.Controls.Canvas]::SetLeft($c.tailTip, $p3x - 10.1)
+    [System.Windows.Controls.Canvas]::SetTop($c.tailTip, $p3y - 10.1)
 }
 
 function Get-AppliedPose($c, $dt) {
@@ -2070,10 +2073,15 @@ function Get-AppliedPose($c, $dt) {
             $a.ear  += 2 * [Math]::Sin($t * 13)
         }
         'pet' {
-            $a.hrot += 3 * [Math]::Sin($t * 5)
-            $a.hdy  += 1.2 * [Math]::Sin($t * 5)
+            # Kuscheldruck: der geknautschte Koerper wippt weich nach (4.5 rad/s),
+            # der Kopf folgt dem Nacken, Ohren und Schwaenzchen schwingen mit
+            $sq = [Math]::Sin($t * 4.5)
+            $a.bsy  += 0.03 * $sq
+            $a.bsx  -= 0.02 * $sq
+            $a.hdy  -= 1.85 * $sq
+            $a.hrot += 3 * [Math]::Sin($t * 2.2)
+            $a.ear  += 2 * $sq
             $a.tailA += 12 * [Math]::Sin($t * 5.5)
-            $a.bdy  += 0.7 * [Math]::Sin($t * 5)
         }
         'drag' {
             $a.brot += 6 * [Math]::Sin($t * 3.1)
@@ -2165,7 +2173,7 @@ function Get-AppliedPose($c, $dt) {
             # Boden), Kopf folgt traege dem Mauszeiger, Schwanzspitze zuckt
             $br2 = [Math]::Sin($t * 1.6)
             $a.bsy  += 0.02 * $br2
-            $a.bdy  += 0.672 * $br2      # = 21 * (0.02 + 0.012): gleicht Loaf- und Allgemein-Atmen aus, Bauch bleibt am Boden
+            $a.bdy  += 0.798 * $br2      # = 21 * (0.02 + 0.018): gleicht Loaf- und Allgemein-Atmen aus, Bauch bleibt am Boden
             $a.hrot += $c.look * 0.5 + 1.5 * [Math]::Sin($t * 0.6)
             $a.hdy  += $c.lookY * 0.5 + 0.4 * $br2
             $a.hdx  += 1.0 * [Math]::Sin($t * 0.45)
@@ -2331,7 +2339,7 @@ function Get-AppliedPose($c, $dt) {
 
     # Atmen: alle wachen Posen heben und senken sich ganz leicht (Schlafposen
     # haben ihr eigenes, tieferes Atmen)
-    if (@('sleep','curl') -notcontains $st) { $a.bsy += 0.012 * [Math]::Sin($t * 1.6) }
+    if (@('sleep','curl') -notcontains $st) { $a.bsy += 0.018 * [Math]::Sin($t * 1.6) }
     # gelegentliches Ohrenzucken (Zeitgeber in Update-Behaviour)
     if ($c.earFlick -gt 0) { $a.ear += 14 * [Math]::Sin($c.earFlick / 0.3 * [Math]::PI) }
 
@@ -2620,7 +2628,7 @@ function Add-Kittens {
     $names = @('Kruemel', 'Fussel')
     $wa = $ref.screen.WorkingArea
     for ($i = 0; $i -lt 2; $i++) {
-        $k = New-Cat $furs[$i] ($ref.size * (0.55 - $i * 0.03)) $names[$i] ('Desktop-Katze-' + $names[$i]) '' 1.26
+        $k = New-Cat $furs[$i] ($ref.size * (0.55 - $i * 0.03)) $names[$i] ('Desktop-Katze-' + $names[$i]) '' 1.3
         $k.kit = $true
         $k.rel = 0.55 - $i * 0.03
         $k.screen = $ref.screen
