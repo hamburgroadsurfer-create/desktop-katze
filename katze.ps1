@@ -19,7 +19,9 @@ param(
     [switch]$MitBabykatzen,
     [switch]$MitGeist,
     [switch]$MitInsekten,
-    [switch]$MitFlut
+    [switch]$MitFlut,
+    [switch]$MitZoo,
+    [double]$FlutDauer = 60      # Dauer der Tierflut in Sekunden
 )
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase,
@@ -207,6 +209,8 @@ $G = @{
     bugs = New-Object System.Collections.ArrayList   # Schmetterlinge und Bienen (auf Bedarf)
     floodGhosts = New-Object System.Collections.ArrayList   # Gast-Geister der Tierflut
     floodT = 0.0                  # Restzeit der Tierflut in Sekunden
+    critters = New-Object System.Collections.ArrayList   # Zoo-Tiere der Tierflut
+    hole = $null                  # Schwarzes Loch am Ende der Tierflut
     toyT = 45.0; flyT = 85.0
     soc = @{ mode = 'none'; t = 0.0; cool = 60.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
     hkT = 1.0                     # Zaehler fuer die Wartungsroutine
@@ -482,7 +486,9 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
     $c.rootScale = New-Object System.Windows.Media.ScaleTransform($size, $size)
     $c.rootPad = New-Object System.Windows.Media.TranslateTransform(($PAD * $size), 0)
     $rtg = New-Object System.Windows.Media.TransformGroup
-    $rtg.Children.Add($c.rootScale); $rtg.Children.Add($c.rootPad)
+    $c.rootRot = New-Object System.Windows.Media.RotateTransform(0)     # nur fuers Einsaugen
+    $c.rootRot.CenterX = ($CW / 2 + $PAD) * $size; $c.rootRot.CenterY = $CH / 2 * $size
+    $rtg.Children.Add($c.rootScale); $rtg.Children.Add($c.rootRot); $rtg.Children.Add($c.rootPad)
     $root.RenderTransform = $rtg
     $win.Content = $root
     $c.root = $root
@@ -869,7 +875,7 @@ $POSES = @{
 
 # Zustaende, die sich eine Pose mit einem anderen teilen
 $POSE_ALIAS = @{ toychase='chase'; approach='walk'; flee='run'; tagchase='chase'; nuzzle='groom'
-                 pester='chase'; kitbat='bat'; migrate='run' }
+                 pester='chase'; kitbat='bat'; migrate='run'; sucked='fall' }
 
 # ============================================================================
 #  Partikel (Herzchen, Z-Z-Z, "miau", Staub)
@@ -1245,7 +1251,7 @@ function Move-Ghost($gh, $dt) {
 function Update-Ghost($dt) {
     if ($G.cats.Count -eq 0) { return }
     if ($G.ghost) { Move-Ghost $G.ghost $dt }
-    foreach ($fg in @($G.floodGhosts)) { Move-Ghost $fg $dt }
+    if (-not $G.hole) { foreach ($fg in @($G.floodGhosts)) { Move-Ghost $fg $dt } }
 }
 
 # ============================================================================
@@ -1341,6 +1347,7 @@ function Update-Bugs($dt) {
     $ref = $G.cats[0]
     $wa = $ref.screen.WorkingArea
     foreach ($b in $G.bugs) {
+        if ($G.hole -and $b.flood) { continue }     # wird gerade eingesaugt
         $b.ph += $dt
         $b.turnT -= $dt
         if ($b.turnT -le 0) {
@@ -1374,11 +1381,11 @@ function Update-Bugs($dt) {
 #  danach verschwinden die Gaeste von selbst wieder (flood-Markierung).
 # ============================================================================
 function Start-Flood {
-    if ($G.floodT -gt 0 -or $G.cats.Count -eq 0) { return }
+    if ($G.floodT -gt 0 -or $G.hole -or $G.cats.Count -eq 0) { return }
     $ref = $G.cats[0]
     $wa = $ref.screen.WorkingArea
     $furs = @('orange','grau','schwarz','weiss','siam')
-    for ($i = 0; $i -lt 6; $i++) {
+    for ($i = 0; $i -lt 3; $i++) {
         $k = New-Cat $furs[(Get-Random -Minimum 0 -Maximum 5)] ($ref.size * (Rnd 0.4 0.65)) ('Gast' + $i) ('Desktop-Katze-Gast' + $i) '' 1.2
         $k.kit = $true; $k.flood = $true; $k.rel = $k.size / $ref.size
         $k.screen = $ref.screen; $k.groundY = $ref.groundY
@@ -1391,7 +1398,7 @@ function Start-Flood {
         Add-Particle $k 'dust' ($CAT_CX + 8) ($GROUND - 10)
         Set-State $k 'run' (Rnd 1 2.5)
     }
-    for ($i = 0; $i -lt 3; $i++) {
+    for ($i = 0; $i -lt 2; $i++) {
         [void]$G.floodGhosts.Add((New-GhostObj ([double](Rnd ($wa.Left + 100) ($wa.Right - 100)))))
     }
     for ($i = 0; $i -lt 10; $i++) {
@@ -1400,18 +1407,420 @@ function Start-Flood {
         $b.flood = $true
         [void]$G.bugs.Add($b)
     }
+    # der Zoo: jedes Tier einmal, dazu vier zufaellige Extras
+    foreach ($kind in ($CRITTER_KINDS + @($CRITTER_KINDS | Get-Random -Count 4))) { [void]$G.critters.Add((New-Critter $kind $ref)) }
     Spawn-Yarn
-    $G.floodT = 60.0
+    $G.floodT = $FlutDauer
     Log-Event 'Tierflut gestartet'
 }
 
 function End-Flood {
+    if ($G.hole) { $G.hole.sp.win.Close(); $G.hole = $null }
     $G.floodT = 0.0
     foreach ($k in @($G.kits)) { if ($k.flood) { Clear-Particles $k; $k.win.Close(); $G.kits.Remove($k) } }
     foreach ($b in @($G.bugs)) { if ($b.flood) { $b.sp.win.Close(); $G.bugs.Remove($b) } }
     foreach ($gh in @($G.floodGhosts)) { $gh.sp.win.Close() }
     $G.floodGhosts.Clear()
+    Despawn-Critters
     Log-Event 'Tierflut vorbei'
+}
+
+# ============================================================================
+#  Der Zoo fuer die Tierflut: kleine Sticker-Tiere in eigenen Fenstern.
+#  Leinwand 56x44, Tier schaut nach rechts; $sp.flip spiegelt in Laufrichtung,
+#  $sp.rot laesst watscheln/wackeln, $sp.wing (falls vorhanden) flattert.
+# ============================================================================
+function New-CritterBase([string]$title, $size) {
+    $sp = New-SpriteWindow 56 44 $title $size
+    $grp = New-Object System.Windows.Controls.Canvas
+    $grp.Width = 56; $grp.Height = 44
+    $sp.rot = New-Object System.Windows.Media.RotateTransform(0)
+    $sp.rot.CenterX = 28; $sp.rot.CenterY = 36
+    $sp.flip = New-Object System.Windows.Media.ScaleTransform(1, 1)
+    $sp.flip.CenterX = 28; $sp.flip.CenterY = 22
+    $tg = New-Object System.Windows.Media.TransformGroup
+    $tg.Children.Add($sp.rot); $tg.Children.Add($sp.flip)
+    $grp.RenderTransform = $tg
+    [void]$sp.cv.Children.Add($grp)
+    $sp.grp = $grp
+    $sp
+}
+# Punktauge mit Glanz
+function Add-CritterEye($grp, $x, $y, $r) {
+    [void]$grp.Children.Add((New-Oval $x $y $r ($r * 1.15) 0 (New-Brush '#3E4660') $null 0))
+    [void]$grp.Children.Add((New-Oval ($x - $r * 0.35) ($y - $r * 0.4) ($r * 0.4) ($r * 0.4) 0 (New-Brush '#FFFFFF') $null 0))
+}
+function Add-CritterPoly($grp, $pts, $brush) {
+    $p = New-Object System.Windows.Shapes.Polygon
+    $pc = New-Object System.Windows.Media.PointCollection
+    foreach ($q in $pts) { $pc.Add([System.Windows.Point]::new($q[0], $q[1])) }
+    $p.Points = $pc; $p.Fill = $brush; $p.Stroke = $brush; $p.StrokeThickness = 1.6; $p.StrokeLineJoin = 'Round'
+    [void]$grp.Children.Add($p)
+}
+function Add-CritterLine($grp, $pts, $brush, $w) {
+    $l = New-Object System.Windows.Shapes.Polyline
+    $pc = New-Object System.Windows.Media.PointCollection
+    foreach ($q in $pts) { $pc.Add([System.Windows.Point]::new($q[0], $q[1])) }
+    $l.Points = $pc; $l.Stroke = $brush; $l.StrokeThickness = $w
+    $l.StrokeStartLineCap = 'Round'; $l.StrokeEndLineCap = 'Round'; $l.StrokeLineJoin = 'Round'
+    [void]$grp.Children.Add($l)
+}
+
+function New-Maus($size) {
+    $sp = New-CritterBase 'Katzen-Maus' $size; $g = $sp.grp
+    $grey = New-Brush '#B9BCCB'; $pink = New-Brush '#F4B3C0'
+    Add-CritterLine $g @(@(11,33),@(4,30),@(2,22)) $grey 2.2
+    [void]$g.Children.Add((New-Oval 26 32 15 9 0 $grey $null 0))
+    foreach ($ex in @(36, 45)) {
+        [void]$g.Children.Add((New-Oval $ex 17.5 4.6 4.6 0 $grey $null 0))
+        [void]$g.Children.Add((New-Oval $ex 17.5 2.6 2.6 0 $pink $null 0))
+    }
+    [void]$g.Children.Add((New-Oval 41 27 8.5 8.5 0 $grey $null 0))
+    Add-CritterEye $g 43 26 1.8
+    [void]$g.Children.Add((New-Oval 49.5 28 1.6 1.4 0 $pink $null 0))
+    $sp
+}
+function New-Frosch($size) {
+    $sp = New-CritterBase 'Katzen-Frosch' $size; $g = $sp.grp
+    $green = New-Brush '#9BD39B'; $dark = New-Brush '#4F7F5A'; $white = New-Brush '#FFFFFF'
+    foreach ($lx in @(16, 40)) { [void]$g.Children.Add((New-Oval $lx 38 7 4 0 $dark $null 0)) }
+    [void]$g.Children.Add((New-Oval 28 30 15 10 0 $green $null 0))
+    foreach ($ex in @(34, 44)) {
+        [void]$g.Children.Add((New-Oval $ex 19 4.6 4.6 0 $green $null 0))
+        [void]$g.Children.Add((New-Oval $ex 19 3.2 3.2 0 $white $null 0))
+        Add-CritterEye $g $ex 19.4 1.9
+    }
+    Add-CritterLine $g @(@(31,32),@(39,35),@(47,32)) $dark 1.4
+    $sp
+}
+function New-Hase($size) {
+    $sp = New-CritterBase 'Katzen-Hase' $size; $g = $sp.grp
+    $beige = New-Brush '#F1E4D3'; $pink = New-Brush '#F4B3C0'
+    [void]$g.Children.Add((New-Oval 12 27 4.5 4.5 0 (New-Brush '#FFFFFF') $null 0))
+    foreach ($ex in @(37, 44)) {
+        [void]$g.Children.Add((New-Oval $ex 10.5 3.2 9.5 0 $beige $null 0))
+        [void]$g.Children.Add((New-Oval $ex 11 1.6 6.5 0 $pink $null 0))
+    }
+    [void]$g.Children.Add((New-Oval 26 31 13 10 0 $beige $null 0))
+    [void]$g.Children.Add((New-Oval 30 40 6 3 0 $beige $null 0))
+    [void]$g.Children.Add((New-Oval 40 25 8.5 8.5 0 $beige $null 0))
+    Add-CritterEye $g 43 24 1.8
+    [void]$g.Children.Add((New-Oval 48 27 1.6 1.3 0 $pink $null 0))
+    $sp
+}
+function New-Schnecke($size) {
+    $sp = New-CritterBase 'Katzen-Schnecke' $size; $g = $sp.grp
+    $shell = New-Brush '#E0A86B'; $dark = New-Brush '#B07A3E'; $body = New-Brush '#C9E7B0'
+    [void]$g.Children.Add((New-Oval 30 37 20 6 0 $body $null 0))
+    [void]$g.Children.Add((New-Oval 49 32 5.2 5.2 0 $body $null 0))
+    [void]$g.Children.Add((New-Oval 30 26 11.5 11.5 0 $shell $null 0))
+    [void]$g.Children.Add((New-Oval 30 26 7.5 7.5 0 $null $dark 1.6))
+    [void]$g.Children.Add((New-Oval 31 27 3.5 3.5 0 $null $dark 1.6))
+    Add-CritterLine $g @(@(51,28),@(53,21)) $body 1.6
+    Add-CritterLine $g @(@(47,28),@(46,20)) $body 1.6
+    Add-CritterEye $g 53 20.5 1.5
+    Add-CritterEye $g 46 19.5 1.5
+    $sp
+}
+function New-Igel($size) {
+    $sp = New-CritterBase 'Katzen-Igel' $size; $g = $sp.grp
+    $brown = New-Brush '#8B6A4F'; $spike = New-Brush '#6E5138'; $face = New-Brush '#E9C9A8'
+    Add-CritterPoly $g @(@(12,30),@(17,17),@(22,27),@(27,14),@(32,26),@(37,13),@(42,25),@(45,31)) $spike
+    [void]$g.Children.Add((New-Oval 28 32 15 9 0 $brown $null 0))
+    foreach ($lx in @(20, 36)) { [void]$g.Children.Add((New-Oval $lx 40.5 3.5 2 0 $spike $null 0)) }
+    [void]$g.Children.Add((New-Oval 44 33 8 6 0 $face $null 0))
+    Add-CritterEye $g 46 31 1.6
+    [void]$g.Children.Add((New-Oval 51.5 34 1.7 1.5 0 (New-Brush '#3E4660') $null 0))
+    $sp
+}
+function New-Ente($size) {
+    $sp = New-CritterBase 'Katzen-Ente' $size; $g = $sp.grp
+    $yel = New-Brush '#F7D354'; $wing = New-Brush '#E8C240'; $orange = New-Brush '#F09A3E'
+    foreach ($fx in @(23, 31)) { [void]$g.Children.Add((New-Oval $fx 42 4.2 1.8 0 $orange $null 0)) }
+    [void]$g.Children.Add((New-Oval 26 31 14 9 0 $yel $null 0))
+    [void]$g.Children.Add((New-Oval 24 31 8 5 0 $wing $null 0))
+    [void]$g.Children.Add((New-Oval 40 21 8 8 0 $yel $null 0))
+    Add-CritterPoly $g @(@(47,20),@(54.5,22),@(47,24)) $orange
+    Add-CritterEye $g 42.5 19 1.7
+    $sp
+}
+function New-Hund($size) {
+    $sp = New-CritterBase 'Katzen-Hund' $size; $g = $sp.grp
+    $tan = New-Brush '#D9B489'; $dark = New-Brush '#8B6A4F'; $snout = New-Brush '#F1DFC4'
+    Add-CritterLine $g @(@(13,30),@(8,22)) $tan 3
+    foreach ($lx in @(20, 34)) { [void]$g.Children.Add((New-Oval $lx 40 4 3 0 $tan $null 0)) }
+    [void]$g.Children.Add((New-Oval 27 31 15 9 0 $tan $null 0))
+    [void]$g.Children.Add((New-Oval 42 25 9 9 0 $tan $null 0))
+    [void]$g.Children.Add((New-Oval 35.5 24 3.8 7 0 $dark $null 0))
+    [void]$g.Children.Add((New-Oval 48 28.5 5.2 3.8 0 $snout $null 0))
+    [void]$g.Children.Add((New-Oval 51.5 27.5 1.9 1.6 0 (New-Brush '#3E4660') $null 0))
+    Add-CritterEye $g 43.5 23 1.8
+    $sp
+}
+function New-Schildkroete($size) {
+    $sp = New-CritterBase 'Katzen-Schildkroete' $size; $g = $sp.grp
+    $shell = New-Brush '#6FA86F'; $dark = New-Brush '#4F7F5A'; $skin = New-Brush '#A8D08D'
+    foreach ($lx in @(17, 38)) { [void]$g.Children.Add((New-Oval $lx 39 5 3 0 $skin $null 0)) }
+    [void]$g.Children.Add((New-Oval 46 32 5.5 5.5 0 $skin $null 0))
+    Add-CritterEye $g 48 31 1.5
+    [void]$g.Children.Add((New-Oval 28 29 15 10 0 $shell $null 0))
+    foreach ($s in @(@(22,28),@(30,24),@(36,29))) { $sp2 = New-Oval $s[0] $s[1] 3 3 0 $dark $null 0; $sp2.Opacity = 0.5; [void]$g.Children.Add($sp2) }
+    [void]$g.Children.Add((New-Oval 28 36.5 16 3 0 $dark $null 0))
+    $sp
+}
+function New-Vogel($size) {
+    $sp = New-CritterBase 'Katzen-Vogel' $size; $g = $sp.grp
+    $blue = New-Brush '#9CC5F0'; $wingc = New-Brush '#7FAEE6'; $orange = New-Brush '#F09A3E'
+    Add-CritterPoly $g @(@(13,26),@(6,20),@(8,30)) $blue
+    [void]$g.Children.Add((New-Oval 28 27 11 9.5 0 $blue $null 0))
+    [void]$g.Children.Add((New-Oval 30 31 6 4 0 (New-Brush '#DDEBFF') $null 0))
+    $wg = New-Object System.Windows.Controls.Canvas; $wg.Width = 56; $wg.Height = 44
+    [void]$wg.Children.Add((New-Oval 25 22 8 4.5 -15 $wingc $null 0))
+    $sp.wing = New-Object System.Windows.Media.ScaleTransform(1, 1); $sp.wing.CenterX = 25; $sp.wing.CenterY = 26.5
+    $wg.RenderTransform = $sp.wing
+    [void]$g.Children.Add($wg)
+    Add-CritterEye $g 34 24 1.8
+    Add-CritterPoly $g @(@(38,26),@(44.5,27.5),@(38,29)) $orange
+    $sp
+}
+function New-Marienkaefer($size) {
+    $sp = New-CritterBase 'Katzen-Marienkaefer' $size; $g = $sp.grp
+    $red = New-Brush '#E8514F'; $black = New-Brush '#2B2B2B'
+    Add-CritterLine $g @(@(25,12),@(21,7)) $black 1
+    Add-CritterLine $g @(@(31,12),@(35,7)) $black 1
+    [void]$g.Children.Add((New-Oval 28 26 11 11 0 $red $null 0))
+    [void]$g.Children.Add((New-Oval 28 16.5 5.5 5 0 $black $null 0))
+    Add-CritterLine $g @(@(28,16),@(28,37)) $black 1.2
+    foreach ($d in @(@(22,23),@(34,23),@(24,31),@(32,31))) { [void]$g.Children.Add((New-Oval $d[0] $d[1] 2 2 0 $black $null 0)) }
+    foreach ($ex in @(26, 30)) { [void]$g.Children.Add((New-Oval $ex 15.5 1.2 1.2 0 (New-Brush '#FFFFFF') $null 0)) }
+    $sp
+}
+function New-Libelle($size) {
+    $sp = New-CritterBase 'Katzen-Libelle' $size; $g = $sp.grp
+    $blue = New-Brush '#5B9BD5'; $wingc = New-Brush '#DDEBFF'
+    $wg = New-Object System.Windows.Controls.Canvas; $wg.Width = 56; $wg.Height = 44
+    foreach ($w in @(@(24,18,-15),@(34,18,15),@(24,34,15),@(34,34,-15))) { $o = New-Oval $w[0] $w[1] 9 3.5 $w[2] $wingc $null 0; $o.Opacity = 0.85; [void]$wg.Children.Add($o) }
+    $sp.wing = New-Object System.Windows.Media.ScaleTransform(1, 1); $sp.wing.CenterX = 29; $sp.wing.CenterY = 26
+    $wg.RenderTransform = $sp.wing
+    [void]$g.Children.Add($wg)
+    Add-CritterLine $g @(@(14,26),@(44,26)) $blue 3
+    [void]$g.Children.Add((New-Oval 45 26 3.8 3.8 0 $blue $null 0))
+    Add-CritterEye $g 47 23.5 1.7
+    Add-CritterEye $g 47 28.5 1.7
+    $sp
+}
+function New-Fledermaus($size) {
+    $sp = New-CritterBase 'Katzen-Fledermaus' $size; $g = $sp.grp
+    $dark = New-Brush '#4C5166'; $pink = New-Brush '#C98F8E'
+    $wg = New-Object System.Windows.Controls.Canvas; $wg.Width = 56; $wg.Height = 44
+    Add-CritterPoly $wg @(@(20,26),@(3,15),@(6,30),@(19,33)) $dark
+    Add-CritterPoly $wg @(@(36,26),@(53,15),@(50,30),@(37,33)) $dark
+    $sp.wing = New-Object System.Windows.Media.ScaleTransform(1, 1); $sp.wing.CenterX = 28; $sp.wing.CenterY = 26
+    $wg.RenderTransform = $sp.wing
+    [void]$g.Children.Add($wg)
+    Add-CritterPoly $g @(@(22,20),@(20,10),@(27,18)) $dark
+    Add-CritterPoly $g @(@(34,20),@(36,10),@(29,18)) $dark
+    [void]$g.Children.Add((New-Oval 22.5 15 1.4 2.6 0 $pink $null 0))
+    [void]$g.Children.Add((New-Oval 33.5 15 1.4 2.6 0 $pink $null 0))
+    [void]$g.Children.Add((New-Oval 28 26 8.5 8.5 0 $dark $null 0))
+    foreach ($ex in @(24.5, 31.5)) {
+        [void]$g.Children.Add((New-Oval $ex 25 2.2 2.4 0 (New-Brush '#FFFFFF') $null 0))
+        [void]$g.Children.Add((New-Oval $ex 25.3 1.1 1.3 0 (New-Brush '#3E4660') $null 0))
+    }
+    $sp
+}
+
+# Bewegungsarten: ground = laeuft am Boden, hop = huepft in Boegen, air = fliegt in Wellen
+$CRITTER_DEF = @{
+    maus         = @{ mode='ground'; vmin=90;  vmax=140; bob=8 }
+    frosch       = @{ mode='hop';    vmin=70;  vmax=110; hopH=28; hopDur=0.55; pauseMin=0.6; pauseMax=2.0 }
+    hase         = @{ mode='hop';    vmin=110; vmax=160; hopH=38; hopDur=0.6;  pauseMin=0.3; pauseMax=1.4 }
+    schnecke     = @{ mode='ground'; vmin=8;   vmax=14;  bob=0 }
+    igel         = @{ mode='ground'; vmin=25;  vmax=40;  bob=6 }
+    ente         = @{ mode='ground'; vmin=30;  vmax=50;  bob=5; waddle=8 }
+    hund         = @{ mode='ground'; vmin=60;  vmax=95;  bob=9 }
+    schildkroete = @{ mode='ground'; vmin=10;  vmax=16;  bob=0; waddle=3 }
+    vogel        = @{ mode='air';    vmin=50;  vmax=90;  flap=8 }
+    marienkaefer = @{ mode='air';    vmin=20;  vmax=40;  flap=0; wobble=6 }
+    libelle      = @{ mode='air';    vmin=90;  vmax=150; flap=30; dart=1 }
+    fledermaus   = @{ mode='air';    vmin=60;  vmax=100; flap=9 }
+}
+$CRITTER_KINDS = @('maus','frosch','hase','schnecke','igel','ente','hund','schildkroete','vogel','marienkaefer','libelle','fledermaus')
+
+function New-Critter([string]$kind, $ref) {
+    $d = $CRITTER_DEF[$kind]
+    $wa = $ref.screen.WorkingArea
+    $sp = switch ($kind) {
+        'maus' { New-Maus $ref.size } 'frosch' { New-Frosch $ref.size } 'hase' { New-Hase $ref.size }
+        'schnecke' { New-Schnecke $ref.size } 'igel' { New-Igel $ref.size } 'ente' { New-Ente $ref.size }
+        'hund' { New-Hund $ref.size } 'schildkroete' { New-Schildkroete $ref.size } 'vogel' { New-Vogel $ref.size }
+        'marienkaefer' { New-Marienkaefer $ref.size } 'libelle' { New-Libelle $ref.size } default { New-Fledermaus $ref.size }
+    }
+    $cr = @{ kind = $kind; def = $d; sp = $sp; x = [double](Rnd ($wa.Left + 80) ($wa.Right - 80)); y = 0.0
+             ph = (Rnd 0 6); vx = 0.0; turnT = 0.0; base = (Rnd 0.1 0.55); by = [double]($wa.Top + $wa.Height * 0.35)
+             hopT = (Rnd 0.2 1.5); hopA = 0.0 }
+    $cr
+}
+
+function Move-Critter($cr, $dt) {
+    $ref = $G.cats[0]
+    $wa = $ref.screen.WorkingArea
+    $d = $cr.def
+    $cr.ph += $dt
+    $cr.turnT -= $dt
+    if ($cr.turnT -le 0) {
+        $cr.turnT = Rnd 2 7
+        $dirn = 1.0; if ((Rnd 0 1) -lt 0.5) { $dirn = -1.0 }
+        $cr.vx = (Rnd $d.vmin $d.vmax) * $ref.pxs * $dirn
+        $cr.base = Rnd 0.1 0.55
+    }
+    # Bodenlinie fuer die Fenstermitte: Unterkante des Fensters liegt auf dem Boden
+    $gyc = $ref.groundY - (44 * $cr.sp.size / 2) * $G.sy
+    if ($d.mode -eq 'hop') {
+        $cr.hopT -= $dt
+        if ($cr.hopT -le 0 -and $cr.hopA -le 0) { $cr.hopT = Rnd $d.pauseMin $d.pauseMax; $cr.hopA = $d.hopDur }
+        $hy = 0.0
+        if ($cr.hopA -gt 0) {
+            $cr.hopA -= $dt
+            $u = 1 - [Math]::Max(0.0, $cr.hopA) / $d.hopDur
+            $cr.x += $cr.vx * $dt
+            $hy = $d.hopH * [Math]::Sin([Math]::PI * $u) * $ref.pxs
+        }
+        $cr.y = $gyc - $hy
+        $cr.sp.rot.Angle = 0
+    } elseif ($d.mode -eq 'ground') {
+        $cr.x += $cr.vx * $dt
+        $spd = [Math]::Abs($cr.vx) / [Math]::Max(1.0, $d.vmax * $ref.pxs)
+        $cr.y = $gyc - $d.bob * 0.35 * $ref.pxs * [Math]::Abs([Math]::Sin($cr.ph * 9 * [Math]::Max(0.3, $spd)))
+        if ($d.waddle) { $cr.sp.rot.Angle = $d.waddle * [Math]::Sin($cr.ph * 7) } else { $cr.sp.rot.Angle = 0 }
+    } else {
+        $cr.x += $cr.vx * $dt
+        $cr.by += (($wa.Top + $wa.Height * $cr.base) - $cr.by) * [Math]::Min(1.0, $dt * 0.4)
+        if ($d.dart) { $cr.y = $cr.by + 25 * $ref.pxs * [Math]::Sin($cr.ph * 5.5) + 8 * $ref.pxs * [Math]::Sin($cr.ph * 17) }
+        else { $cr.y = $cr.by + 35 * $ref.pxs * [Math]::Sin($cr.ph * 0.9) + 8 * $ref.pxs * [Math]::Sin($cr.ph * 3.3) }
+        if ($d.wobble) { $cr.sp.rot.Angle = $d.wobble * [Math]::Sin($cr.ph * 2.3) } else { $cr.sp.rot.Angle = 3 * [Math]::Sin($cr.ph * 1.5) }
+    }
+    $cm = 50 * $ref.pxs
+    if ($cr.x -lt ($wa.Left + $cm))  { $cr.x = $wa.Left + $cm;  $cr.vx = [Math]::Abs($cr.vx) }
+    if ($cr.x -gt ($wa.Right - $cm)) { $cr.x = $wa.Right - $cm; $cr.vx = -[Math]::Abs($cr.vx) }
+    if ($cr.vx -lt 0) { $cr.sp.flip.ScaleX = -1 } else { $cr.sp.flip.ScaleX = 1 }
+    if ($cr.sp.wing -and $d.flap -gt 0) { $cr.sp.wing.ScaleY = 0.3 + 0.7 * [Math]::Abs([Math]::Sin($cr.ph * $d.flap)) }
+    Set-SpritePos $cr.sp $cr.x $cr.y
+}
+
+function Update-Critters($dt) {
+    if ($G.critters.Count -eq 0 -or $G.cats.Count -eq 0 -or $G.hole) { return }
+    foreach ($cr in $G.critters) { Move-Critter $cr $dt }
+}
+
+function Despawn-Critters {
+    foreach ($cr in @($G.critters)) { $cr.sp.win.Close() }
+    $G.critters.Clear()
+}
+
+# ============================================================================
+#  Schwarzes Loch: erscheint am Ende der Tierflut, saugt alle Gaeste ein
+#  (sie wirbeln schrumpfend hinein) und schliesst sich wieder.
+# ============================================================================
+function New-Hole($size) {
+    $sp = New-SpriteWindow 160 160 'Katzen-Loch' $size
+    $grp = New-Object System.Windows.Controls.Canvas
+    $grp.Width = 160; $grp.Height = 160
+    $glow = New-Object System.Windows.Media.RadialGradientBrush
+    $glow.GradientStops.Add((New-Object System.Windows.Media.GradientStop(([System.Windows.Media.Color]::FromArgb(0, 90, 60, 140)), 0.55)))
+    $glow.GradientStops.Add((New-Object System.Windows.Media.GradientStop(([System.Windows.Media.Color]::FromArgb(120, 120, 80, 190)), 0.75)))
+    $glow.GradientStops.Add((New-Object System.Windows.Media.GradientStop(([System.Windows.Media.Color]::FromArgb(0, 120, 80, 190)), 1.0)))
+    [void]$grp.Children.Add((New-Oval 80 80 78 78 0 $glow $null 0))
+    [void]$grp.Children.Add((New-Oval 80 80 48 48 0 (New-Brush '#14101E') $null 0))
+    # Akkretionsring und Wirbel-Ellipsen, die sich drehen
+    $swirl = New-Object System.Windows.Controls.Canvas
+    $swirl.Width = 160; $swirl.Height = 160
+    [void]$swirl.Children.Add((New-Oval 80 80 60 22 -25 $null (New-Brush '#B69BE8') 3))
+    [void]$swirl.Children.Add((New-Oval 80 80 66 30 -25 $null (New-Brush '#7F62B8') 1.6))
+    foreach ($a in @(0, 120, 240)) {
+        $o = New-Oval 80 80 40 14 $a $null (New-Brush '#E6DDFB') 1.2
+        $o.Opacity = 0.6
+        [void]$swirl.Children.Add($o)
+    }
+    $sp.rot = New-Object System.Windows.Media.RotateTransform(0)
+    $sp.rot.CenterX = 80; $sp.rot.CenterY = 80
+    $swirl.RenderTransform = $sp.rot
+    [void]$grp.Children.Add($swirl)
+    $sp.scl = New-Object System.Windows.Media.ScaleTransform(0.01, 0.01)
+    $sp.scl.CenterX = 80; $sp.scl.CenterY = 80
+    $grp.RenderTransform = $sp.scl
+    [void]$sp.cv.Children.Add($grp)
+    $sp
+}
+
+function Start-Suck {
+    if ($G.hole -or $G.cats.Count -eq 0) { End-Flood; return }
+    $ref = $G.cats[0]
+    $wa = $ref.screen.WorkingArea
+    $G.hole = @{ sp = (New-Hole ($ref.size * 1.4)); x = [double]($wa.Left + $wa.Width * 0.5); y = [double]($wa.Top + $wa.Height * 0.42); t = 0.0 }
+    Set-SpritePos $G.hole.sp $G.hole.x $G.hole.y
+    foreach ($k in @($G.kits)) { if ($k.flood) { Clear-Particles $k; Set-State $k 'sucked' 999; $k.vx = 0; $k.svx = 0 } }
+    # die Grossen erschrecken sich
+    foreach ($c in $G.cats) {
+        if ($c.locked -or $c.dragging) { continue }
+        if ($G.hole.x -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
+        Set-State $c 'arch' (Rnd 3 5)
+    }
+    Log-Event 'Schwarzes Loch saugt die Tierflut ein'
+}
+
+# Sprite schrumpfend und drehend an eine Position setzen
+function Suck-Sprite($sp, $x, $y, $f, $ang) {
+    $s = $sp.size * $f
+    $tg = New-Object System.Windows.Media.TransformGroup
+    $tg.Children.Add((New-Object System.Windows.Media.ScaleTransform($s, $s)))
+    $r = New-Object System.Windows.Media.RotateTransform($ang)
+    $r.CenterX = $sp.w * $s / 2; $r.CenterY = $sp.h * $s / 2
+    $tg.Children.Add($r)
+    $sp.cv.RenderTransform = $tg
+    Set-SpritePos $sp $x $y
+}
+
+function Update-Hole($dt) {
+    if (-not $G.hole) { return }
+    $h = $G.hole
+    $h.t += $dt
+    $t = $h.t
+    $sc = 1.0
+    if ($t -lt 0.6) { $sc = $t / 0.6 } elseif ($t -gt 4.1) { $sc = [Math]::Max(0.01, (4.9 - $t) / 0.8) }
+    $h.sp.scl.ScaleX = $sc; $h.sp.scl.ScaleY = $sc
+    $h.sp.rot.Angle += 140 * $dt
+    if ($t -ge 4.9) { $h.sp.win.Close(); $G.hole = $null; End-Flood; return }
+    if ($t -lt 0.4 -or $t -gt 4.1) { return }
+    $k = [Math]::Min(1.0, $dt * (1.2 + 2.5 * ($t - 0.4)))
+    $f = [Math]::Max(0.06, 1 - ($t - 0.4) / 3.0)
+    # Sprites (Geister, Insekten, Zoo) einsaugen
+    $lists = @(@($G.floodGhosts), @($G.bugs | Where-Object { $_.flood }), @($G.critters))
+    foreach ($lst in $lists) {
+        foreach ($o in $lst) {
+            if ($o.gone) { continue }
+            $o.x += ($h.x - $o.x) * $k; $o.y += ($h.y - $o.y) * $k
+            if (-not $o.spin) { $o.spin = 0.0 }
+            $o.spin += 540 * $dt
+            Suck-Sprite $o.sp $o.x $o.y $f $o.spin
+            if ($f -le 0.08 -or ([Math]::Abs($o.x - $h.x) + [Math]::Abs($o.y - $h.y)) -lt 12) { $o.sp.win.Close(); $o.gone = $true }
+        }
+    }
+    foreach ($o in @($G.floodGhosts)) { if ($o.gone) { $G.floodGhosts.Remove($o) } }
+    foreach ($o in @($G.bugs))        { if ($o.gone) { $G.bugs.Remove($o) } }
+    foreach ($o in @($G.critters))    { if ($o.gone) { $G.critters.Remove($o) } }
+    # Gast-Kaetzchen einsaugen (drehen und schrumpfen ueber die Wurzel-Transformation)
+    foreach ($c in @($G.kits)) {
+        if (-not $c.flood) { continue }
+        $c.x += ($h.x - $c.x) * $k
+        $ty = ($c.groundY - $h.y) / $G.sy
+        $c.y += ($ty - $c.y) * $k
+        $c.rootScale.ScaleX = $c.size * $f; $c.rootScale.ScaleY = $c.size * $f
+        $c.rootRot.Angle += 420 * $dt
+        if ($f -le 0.08 -or ([Math]::Abs($c.x - $h.x) -lt 12 -and [Math]::Abs($c.y - $ty) -lt 12)) { Clear-Particles $c; $c.win.Close(); $G.kits.Remove($c) }
+    }
+    # das Wollknaeuel rollt auch hinein
+    if ($G.toy) { $G.toy.x += ($h.x - $G.toy.x) * $k; if ([Math]::Abs($G.toy.x - $h.x) -lt 30) { Despawn-Yarn } }
 }
 
 # ============================================================================
@@ -2018,7 +2427,7 @@ function Update-Behaviour($c, $dt) {
         if ($c.meowT -le 0) { $c.meowT = Rnd 0.9 1.5; Add-Particle $c 'meow' 144 80 }
     }
 
-    if (-not $c.locked -and -not $Pose -and (@('leap','fall','drag') -notcontains $c.state)) {
+    if (-not $c.locked -and -not $Pose -and (@('leap','fall','drag','sucked') -notcontains $c.state)) {
         if ($c.stateT -ge $c.stateDur) { Next-State $c }
     }
 }
@@ -2027,6 +2436,7 @@ function Update-Behaviour($c, $dt) {
 function Gait-Factor($c) { [Math]::Min(1.0, [Math]::Abs($c.svx) / [Math]::Max(1.0, [Math]::Abs($c.vx))) }
 
 function Update-Physics($c, $dt) {
+    if ($c.state -eq 'sucked') { return }      # wird vom Schwarzen Loch bewegt
     if ($c.state -eq 'drag') {
         $cur = [System.Windows.Forms.Cursor]::Position
         $c.x = [double]$cur.X + $c.gripDX; $c.svx = 0
@@ -2756,7 +3166,7 @@ function Show-Cats([bool]$show) {
     foreach ($c in (@($G.cats) + @($G.kits))) {
         if ($show) { $c.win.Show() } else { if ($c.dragging) { $c.root.ReleaseMouseCapture() }; $c.win.Hide() }
     }
-    foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts))) {
+    foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts) + @($G.critters))) {
         if ($sp) { if ($show) { $sp.sp.win.Show() } else { $sp.sp.win.Hide() } }
     }
 }
@@ -2823,7 +3233,7 @@ function Update-Housekeeping($dt) {
         $moved = 0
         $wins = @()
         foreach ($c in (@($G.cats) + @($G.kits))) { $wins += $c.win }
-        foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts))) { if ($sp) { $wins += $sp.sp.win } }
+        foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts) + @($G.critters))) { if ($sp) { $wins += $sp.sp.win } }
         foreach ($w in $wins) {
             $h = (New-Object System.Windows.Interop.WindowInteropHelper($w)).Handle
             if ($h -eq [IntPtr]::Zero) { continue }
@@ -2885,7 +3295,7 @@ function Set-CatSize($c, [double]$s) {
 function Set-AllSizes([double]$s) {
     foreach ($c in $G.cats) { Set-CatSize $c ($s * $c.rel) }
     foreach ($k in $G.kits) { Set-CatSize $k ($s * $k.rel) }
-    foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts))) {
+    foreach ($sp in (@($G.toy, $G.fly, $G.ghost) + @($G.bugs) + @($G.floodGhosts) + @($G.critters))) {
         if ($sp) {
             $sp.sp.size = $s; if ($sp -eq $G.ghost) { $sp.sp.size = $s * 1.5 }
             $sp.sp.cv.RenderTransform = New-Object System.Windows.Media.ScaleTransform($sp.sp.size, $sp.sp.size)
@@ -3205,6 +3615,7 @@ if ($MitBabykatzen) { Add-Kittens }
 if ($MitGeist) { Spawn-Ghost }
 if ($MitInsekten) { Spawn-Bugs }
 if ($MitFlut) { Start-Flood }
+if ($MitZoo) { foreach ($kind in $CRITTER_KINDS) { [void]$G.critters.Add((New-Critter $kind $G.cats[0])) } }   # Debug: alle Zoo-Tiere zeigen
 # Debug: -Pose haelt alle Katzen in einer Pose fest
 if ($Pose) {
     if ($POSES.ContainsKey($Pose) -or $POSE_ALIAS.ContainsKey($Pose)) {
@@ -3241,7 +3652,9 @@ $timer.Add_Tick({
         Update-Fly $dt
         Update-Ghost $dt
         Update-Bugs $dt
-        if ($G.floodT -gt 0) { $G.floodT -= $dt; if ($G.floodT -le 0) { End-Flood } }
+        Update-Critters $dt
+        Update-Hole $dt
+        if ($G.floodT -gt 0) { $G.floodT -= $dt; if ($G.floodT -le 0) { Log-Event 'Tierflut abgelaufen'; try { Start-Suck } catch { Log-Event ('FEHLER in Start-Suck: ' + $_.Exception.Message + ' @ ' + $_.ScriptStackTrace) } } }
 
         # Spielzeug taucht von allein auf - aber nicht, wenn niemand zusieht
         if (-not $G.away) {

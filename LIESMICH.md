@@ -75,9 +75,13 @@ Monitor der Katzen — drei Schmetterlinge in Pastellfarben, die gemächlich in 
 flattern, und zwei Bienen, die flott zickzacken. Die Katzen schauen ihnen gelegentlich nach.
 
 **Tierflut! (1 Minute):** Ein Knopf im Menü füllt den Bildschirm eine Minute lang mit
-sechs Gast-Kätzchen, drei Geistern, zehn Insekten und einem Wollknäuel — die Gäste
-mischen sich unter die Großen (und ärgern sie) und verschwinden nach 60 Sekunden von
-selbst wieder.
+einem ganzen Zoo: drei Gast-Kätzchen, zwei Geister, zehn Insekten, ein Wollknäuel und
+sechzehn Tiere aus dem Zoo — **Maus** (huscht), **Frosch** und **Hase** (hüpfen),
+**Schnecke** und **Schildkröte** (kriechen), **Igel**, **Ente** (watschelt), **Hund**
+(trabt) am Boden sowie **Vogel**, **Marienkäfer**, **Libelle** (schießt hin und her) und
+**Fledermaus** in der Luft. Nach 60 Sekunden öffnet sich mittig ein **schwarzes Loch** mit
+wirbelndem Akkretionsring, saugt alle Gäste schrumpfend und kreiselnd ein (die Großen
+machen vor Schreck einen Buckel) und schließt sich wieder.
 
 **Alles per Rechtsklick:** Im Menü jeder Katze (auch der Kätzchen) lassen sich Freundin,
 Babykatzen, Geist und Schwarm holen und wegschicken, Wollknäuel und Schmetterling schicken
