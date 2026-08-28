@@ -46,8 +46,24 @@ public static class CatNative {
         return (GetTickCount() - li.dwTime) / 1000.0;
     }
 
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+
+    // Titel des Vordergrundfensters (fuers Ereignis-Log)
+    public static string ForegroundTitle() {
+        IntPtr h = GetForegroundWindow();
+        if (h == IntPtr.Zero) return "";
+        StringBuilder t = new StringBuilder(128); GetWindowText(h, t, 128);
+        StringBuilder cn = new StringBuilder(64); GetClassName(h, cn, 64);
+        return t.ToString() + " [" + cn.ToString() + "]";
+    }
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+
     // Deckt das Vordergrundfenster einen ganzen Monitor ab? (Spiel, Video, Praesentation)
-    // Der Desktop selbst und die Taskleiste zaehlen nicht.
+    // Der Desktop selbst und die Taskleiste zaehlen nicht. Maximierte Fenster und
+    // Fenster mit Titelleiste sind KEIN Vollbild - sonst verschwinden die Katzen
+    // auf Monitoren ohne Taskleiste bei jedem maximierten Browser.
     public static bool ForegroundIsFullscreen(int mLeft, int mTop, int mRight, int mBottom) {
         IntPtr h = GetForegroundWindow();
         if (h == IntPtr.Zero) return false;
@@ -55,6 +71,9 @@ public static class CatNative {
         GetClassName(h, cn, 64);
         string k = cn.ToString();
         if (k == "Progman" || k == "WorkerW" || k == "Shell_TrayWnd" || k == "Windows.UI.Core.CoreWindow") return false;
+        int st = GetWindowLong(h, -16);                       // GWL_STYLE
+        if ((st & 0x01000000) != 0) return false;             // WS_MAXIMIZE: normales, maximiertes Fenster
+        if ((st & 0x00C00000) == 0x00C00000) return false;    // WS_CAPTION: hat Titelleiste, kein Vollbild
         RECT r;
         if (!GetWindowRect(h, out r)) return false;
         return (r.Left <= mLeft && r.Top <= mTop && r.Right >= mRight && r.Bottom >= mBottom);
@@ -126,6 +145,35 @@ public static class CatSil {
 }
 '@
 
+# Virtuelle Desktops (Win+Ctrl+Pfeil): ein Fenster gehoert immer zu EINEM Desktop.
+# Damit die Katzen nicht "verschwinden", werden sie auf den Desktop des aktuellen
+# Vordergrundfensters geholt (dokumentierte IVirtualDesktopManager-API).
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+[ComImport, Guid("a5cd92ff-29be-454c-8d04-d82879fb3f1b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IVirtualDesktopManager {
+    [PreserveSig] int IsWindowOnCurrentVirtualDesktop(IntPtr topLevelWindow, out int onCurrentDesktop);
+    [PreserveSig] int GetWindowDesktopId(IntPtr topLevelWindow, out Guid desktopId);
+    [PreserveSig] int MoveWindowToDesktop(IntPtr topLevelWindow, ref Guid desktopId);
+}
+[ComImport, Guid("aa509086-5ca9-4c25-8f95-589d3c07b48a")] public class VirtualDesktopManagerCls { }
+public static class CatDesk {
+    static IVirtualDesktopManager mgr;
+    static IVirtualDesktopManager Mgr() { if (mgr == null) mgr = (IVirtualDesktopManager)new VirtualDesktopManagerCls(); return mgr; }
+    // holt hwnd auf den Desktop von refWnd (Vordergrundfenster); true, wenn verschoben wurde
+    public static bool EnsureOnCurrentDesktop(IntPtr hwnd, IntPtr refWnd) {
+        try {
+            int on;
+            if (Mgr().IsWindowOnCurrentVirtualDesktop(hwnd, out on) != 0 || on != 0) return false;
+            Guid id;
+            if (refWnd == IntPtr.Zero || Mgr().GetWindowDesktopId(refWnd, out id) != 0 || id == Guid.Empty) return false;
+            return Mgr().MoveWindowToDesktop(hwnd, ref id) == 0;
+        } catch { return false; }
+    }
+}
+'@
+
 # --- Leinwand-Geometrie (Entwurfskoordinaten, Katze schaut nach rechts) ------
 $CW = 190.0      # Breite
 $CH = 190.0      # Hoehe (oberer Bereich = Platz fuer Herzchen / Z-Z-Z)
@@ -155,6 +203,9 @@ $G = @{
     toyT = 45.0; flyT = 85.0
     soc = @{ mode = 'none'; t = 0.0; cool = 60.0; runner = 0; swaps = 0; dur = 0.0; heartT = 0.0 }
     hkT = 1.0                     # Zaehler fuer die Wartungsroutine
+    noHide = $false               # Tray: Vollbild-Versteck abschaltbar
+    otherT = 0.0                  # Sekunden, die der Zeiger schon auf einem anderen Monitor ist
+    evLog = (Join-Path $env:TEMP 'desktop-katze-ereignisse.log')
     dt = 0.024                    # letzte Frame-Dauer (fuer Apply-Pose)
     hidden = $false               # versteckt, weil eine Vollbild-App laeuft
     away = $false                 # niemand am Rechner -> Katzen doesen
@@ -2366,9 +2417,19 @@ function Update-HitArea($c) {
 #  Wartung: laeuft ca. jede Sekunde und haelt die Katzen mit der Wirklichkeit
 #  im Einklang - Bildschirmskalierung, Monitorwechsel, Vollbild-Apps, Abwesenheit.
 # ============================================================================
+
+# Ereignis-Log (Verstecken/Zeigen, Desktop-/Monitorwechsel) - hilft beim
+# Nachvollziehen, wenn die Katzen "weg" waren. Bleibt klein.
+function Log-Event([string]$msg) {
+    try {
+        if ((Test-Path $G.evLog) -and (Get-Item $G.evLog).Length -gt 65536) { Clear-Content $G.evLog }
+        Add-Content -Path $G.evLog -Value ('[' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '] ' + $msg) -Encoding UTF8
+    } catch { }
+}
 function Show-Cats([bool]$show) {
     if ($G.hidden -eq (-not $show)) { return }
     $G.hidden = (-not $show)
+    if ($show) { Log-Event 'Katzen wieder gezeigt' } else { Log-Event ('Katzen versteckt - Vollbild: ' + [CatNative]::ForegroundTitle()) }
     foreach ($c in (@($G.cats) + @($G.kits))) {
         if ($show) { $c.win.Show() } else { if ($c.dragging) { $c.root.ReleaseMouseCapture() }; $c.win.Hide() }
     }
@@ -2417,7 +2478,7 @@ function Update-Housekeeping($dt) {
         $b = $c.screen.Bounds
         if ([CatNative]::ForegroundIsFullscreen($b.Left, $b.Top, $b.Right, $b.Bottom)) { $full = $true; break }
     }
-    Show-Cats (-not $full)
+    Show-Cats (-not $full -or $G.noHide)
 
     # 4) Niemand am Rechner? Dann doesen sie, statt Aufmerksamkeit zu wollen.
     $idle = [CatNative]::IdleSeconds()
@@ -2428,6 +2489,45 @@ function Update-Housekeeping($dt) {
         if ($G.soc.mode -eq 'nap') { Abort-Social }
         foreach ($c in (@($G.cats) + @($G.kits))) {
             if (@('sleep','curl') -contains $c.state) { Set-State $c 'shake' 1.1 }
+        }
+    }
+
+    # 5) Virtueller Desktop gewechselt (Win+Ctrl+Pfeil) oder "Desktop anzeigen"
+    #    (Win+D) hat die Fenster minimiert? Die Katzen gehoeren zum Schreibtisch:
+    #    sie folgen auf den aktuellen Desktop bzw. tauchen wieder auf.
+    if (-not $G.hidden) {
+        $fg = [CatNative]::GetForegroundWindow()
+        $moved = 0
+        $wins = @()
+        foreach ($c in (@($G.cats) + @($G.kits))) { $wins += $c.win }
+        foreach ($sp in @($G.toy, $G.fly)) { if ($sp) { $wins += $sp.sp.win } }
+        foreach ($w in $wins) {
+            $h = (New-Object System.Windows.Interop.WindowInteropHelper($w)).Handle
+            if ($h -eq [IntPtr]::Zero) { continue }
+            if ([CatDesk]::EnsureOnCurrentDesktop($h, $fg)) { $moved++ }
+            if ([CatNative]::IsIconic($h)) { [void][CatNative]::ShowWindow($h, 4); $moved++ }   # SW_SHOWNOACTIVATE
+        }
+        if ($moved -gt 0) { Log-Event "Katzen zurueckgeholt ($moved Fenster; Desktopwechsel oder Win+D)" }
+    }
+
+    # 6) Arbeitest du laenger auf einem anderen Monitor? Dann kommen die Katzen
+    #    nach anderthalb Minuten herueber, statt dort "verschwunden" zu sein.
+    if (-not $G.away -and -not $G.hidden -and $G.cats.Count -gt 0 -and $null -ne $G.cats[0].screen) {
+        $cpos = [System.Windows.Forms.Cursor]::Position
+        $cs = Get-ScreenAt $cpos.X $cpos.Y
+        $busy = $false
+        foreach ($c in $G.cats) { if ($c.dragging -or $c.chase) { $busy = $true } }
+        if ($cs.DeviceName -ne $G.cats[0].screen.DeviceName -and -not $busy) { $G.otherT += 1.2 } else { $G.otherT = 0.0 }
+        if ($G.otherT -gt 90) {
+            $G.otherT = 0.0
+            Abort-Social
+            $i = 0
+            foreach ($c in (@($G.cats) + @($G.kits))) {
+                Move-ToScreen $c $cs ($i * 160 * $c.pxs - 120 * $c.pxs)
+                Set-State $c 'walk' (Rnd 3 6)
+                $i++
+            }
+            Log-Event "Katzen folgen auf Monitor $($cs.DeviceName)"
         }
     }
 }
@@ -2658,6 +2758,7 @@ Add-TrayItem $menu 'Jetzt begruessen' {
     Abort-Social
     $G.soc.cool = 0.2
 } | Out-Null
+$tHide = Add-TrayItem $menu 'Bei Vollbild verstecken' { $G.noHide = -not $G.noHide; if ($G.noHide) { Show-Cats $true } }
 $tPause = Add-TrayItem $menu 'Pause' {
     $G.paused = -not $G.paused
     if ($G.paused) { $timer.Stop() } else { $sw.Restart(); $G.last = 0; $timer.Start() }
@@ -2687,6 +2788,7 @@ Add-TrayItem $menu 'Beenden' { Stop-All } | Out-Null
 $notify.ContextMenuStrip = $menu
 $menu.Add_Opening({
     $tChase.Checked = $G.cats[0].chase
+    $tHide.Checked = -not $G.noHide
     if ($G.paused) { $tPause.Text = 'Weiter' } else { $tPause.Text = 'Pause' }
     if ($G.cats.Count -ge 2) { $tFriend.Text = 'Freundin wegschicken' } else { $tFriend.Text = 'Freundin holen' }
     if ($G.kits.Count -gt 0) { $tKits.Text = 'Babykatzen wegschicken' } else { $tKits.Text = 'Babykatzen holen' }

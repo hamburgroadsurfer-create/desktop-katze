@@ -100,6 +100,12 @@ Weiterlaufen). Beide haben eigene Zeitgeber, atmen also nicht im Gleichschritt.
   beenden sie ihre aktuelle Beschäftigung, legen sich hin und **schlafen durch** — kein
   Spielzeug, keine Begegnungen, kein Herumlaufen. Sobald du zurück bist, schütteln sie
   sich und machen weiter.
+* **Nie „weg":** Wechselst du den virtuellen Desktop (Win+Ctrl+Pfeil), kommen die Katzen
+  mit; nach „Desktop anzeigen" (Win+D) tauchen sie wieder auf; arbeitest du länger als
+  anderthalb Minuten auf einem anderen Monitor, kommen sie herüber. Maximierte Fenster
+  gelten nicht als Vollbild. Das Vollbild-Versteck lässt sich im Tray abschalten
+  (*Bei Vollbild verstecken*). Verstecken, Zeigen und Umzüge stehen mit Zeitstempel in
+  `%TEMP%\desktop-katze-ereignisse.log`.
 * **Klickdurchlässig:** Jedes Katzenfenster fängt Mausklicks *nur* dort ab, wo tatsächlich
   Katze gezeichnet ist (pixelgenauer WPF-Hit-Test + `WS_EX_TRANSPARENT`).
 * Kein Alt-Tab-Eintrag, keine Taskleiste, klaut niemals den Fokus.
