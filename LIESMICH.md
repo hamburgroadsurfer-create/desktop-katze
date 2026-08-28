@@ -97,7 +97,7 @@ Laufen · Rennen · Sitzen · **Katzenbrot** (flach am Boden, wach, Blick zum Ze
 Blinzeln) · **Freudenhopser** (Squish, Hüpfer, Pfötchen eingezogen) · **Popo-Wackeln** vor dem
 Sprung · Sich putzen (erst die Pfote ablecken, dann damit über Ohr und Wange wischen) · Sich
 hinterm Ohr kratzen · Lümmeln · Gähnen (Maul weit auf) ·
-Maunzen (mit „miau") · Als Fellnase-Loaf schlafen · Zusammengerollt schlafen (mit z-z-z) ·
+**Maunzen** (mit „miau"-Sprechblase am Köpfchen) · Als Fellnase-Loaf schlafen · Zusammengerollt schlafen (mit z-z-z) ·
 Strecken · **Katzenbuckel machen** · **Sich schütteln** (nach dem Aufwachen und nach dem
 Hochheben) · **Am Boden schnuppern** und dabei im Schneckentempo weiterschleichen ·
 **Mit den Vorderpfoten scharren** (mit aufstiebendem Staub) · **Männchen machen und
@@ -107,10 +107,15 @@ aufrichten und kratzen · Blinzeln · Ohrenzucken · Schwanzwedeln · Atmen.
 Im Sitzen und im Leerlauf **verfolgt ihr Kopf deinen Mauszeiger** — und dabei **blinzelt
 sie dich manchmal langsam an**, was bei Katzen Zuneigung bedeutet. Ist der Mauszeiger nah,
 **winkt oder bettelt** sie, **legt den Kopf schief**, schenkt dir einen **Katzenkuss**
-(ganz langsames Blinzeln mit Herzchen) oder tapst hin und **gibt Köpfchen**. Nach dem
+(ganz langsames Blinzeln mit Herzchen), **miaut dich an** oder tapst hin und **gibt Köpfchen**. Nach dem
 Streicheln **schnurrt** sie mit Milchtritt oder macht Freudenhopser. Die Zustände gehen sinnvoll ineinander über
 (Schlafen → Schütteln → Gähnen → Strecken → Buckel → Losspazieren; Scharren → Schnuppern →
 Weiterlaufen). Beide haben eigene Zeitgeber, atmen also nicht im Gleichschritt.
+
+**Gesprächig** sind sie auch: Alle paar Dutzend Sekunden kommt mitten in der Tätigkeit ein
+kurzes „miau" (oder „mau", „mrrp"; die Kätzchen sagen „mii") — das Mäulchen geht dabei kurz auf
+und das Köpfchen hebt sich. Extra-Miaus gibt es beim Hochheben, wenn Spielzeug auftaucht, nach
+dem Aufwachen und zur Begrüßung untereinander (eine ruft, die andere antwortet).
 
 ## Rücksichtnahme
 

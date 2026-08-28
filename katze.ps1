@@ -454,7 +454,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         clickThrough = $true
         dragging = $false; dragMoved = 0.0; downPos = $null; zoomies = $false
         particles = New-Object System.Collections.ArrayList
-        zT = 0.0; heartT = 0.0; meowT = 0.0; batNext = 0.0; digT = 0.0
+        zT = 0.0; heartT = 0.0; meowT = 0.0; chatT = (Rnd 6 25); chatM = 0.0; batNext = 0.0; digT = 0.0
         look = 0.0; lookY = 0.0
         locked = $false; meetX = 0.0
         kit = $false; target = $null; chuteOn = $false; headK = $headK
@@ -719,6 +719,7 @@ function New-Cat([string]$fur, [double]$size, [string]$name, [string]$title, [st
         Clear-Particles $c
         if (-not $c.kit) { Abort-Social }     # Kaetzchen anfassen bricht die Grossen nicht ab
         Set-State $c 'drag' 999
+        $c.chatT = 0.15                       # Protest-Miau beim Hochheben
         $c.vx = 0; $c.vy = 0
         # Griffpunkt merken: die Katze bleibt genau dort haengen, wo sie gepackt wurde
         $c.gripDX = $c.x - $c.downPos.X
@@ -889,8 +890,13 @@ function Add-Particle($c, [string]$kind, $x, $y) {
         $el.Foreground = (New-Brush '#FF7DA0')
     } elseif ($kind -eq 'meow') {
         $el = New-Object System.Windows.Controls.TextBlock
-        $el.Text = 'miau'
+        $words = @('miau','miau','miau~','mau','mrrp')
+        if ($c.kit) { $words = @('mii','miu','mii~','miau') }
+        $el.Text = $words[(Get-Random -Minimum 0 -Maximum $words.Count)]
         $el.FontSize = 14
+        if ($c.kit) { $el.FontSize = 12 }
+        # die Sprechblase gehoert ans Koepfchen, also auf die Blickseite
+        if ($c.facing -lt 0) { $x = $CW - $x - 30 }
         $el.FontFamily = New-Object System.Windows.Media.FontFamily('Segoe UI')
         $el.FontStyle = 'Italic'
         $el.Foreground = (New-Brush '#7C8BA6')
@@ -1079,6 +1085,7 @@ function Spawn-Yarn {
     if ($G.cats.Count -eq 0) { return }
     if ($G.toy) { $G.toy.life = [Math]::Max($G.toy.life, 30); return }
     $ref = $G.cats[(Get-Random -Minimum 0 -Maximum $G.cats.Count)]
+    foreach ($kc in $G.cats) { $kc.chatT = Rnd 0.2 1.4 }   # aufgeregtes Miauen, Spielzeug!
     $side = 1.0
     if ((Rnd 0 1) -lt 0.5) { $side = -1.0 }
     $wa = $ref.screen.WorkingArea
@@ -1118,6 +1125,7 @@ function Spawn-Fly {
     if ($G.cats.Count -eq 0) { return }
     if ($G.fly) { $G.fly.life = [Math]::Max($G.fly.life, 25); return }
     $ref = $G.cats[0]
+    foreach ($kc in $G.cats) { $kc.chatT = Rnd 0.2 1.4 }   # aufgeregtes Miauen, Schmetterling!
     $dir = 1.0
     if ((Rnd 0 1) -lt 0.5) { $dir = -1.0 }
     $G.fly = @{ sp = (New-Butterfly $ref.size); x = ($ref.x - $dir * 220 * $ref.pxs); y = 0.0; ph = 0.0
@@ -1908,8 +1916,8 @@ function Next-KitState($c) {
     elseif ($r -lt 0.51) { Set-State $c 'run'     (Rnd 2 3.5) }
     elseif ($r -lt 0.55) { Set-State $c 'hop'     (Rnd 1.8 2.8) }
     elseif ($r -lt 0.65) { Set-State $c 'crouch'  (Rnd 0.6 1.1) }
-    elseif ($r -lt 0.75) { Set-State $c 'walk'    (Rnd 3 7) }
-    elseif ($r -lt 0.82) { Set-State $c 'meow'    (Rnd 1.4 2.4) }
+    elseif ($r -lt 0.73) { Set-State $c 'walk'    (Rnd 3 7) }
+    elseif ($r -lt 0.83) { Set-State $c 'meow'    (Rnd 1.6 2.8) }
     elseif ($r -lt 0.89) { Set-State $c 'roll'    (Rnd 4 8) }
     elseif ($r -lt 0.95) { Set-State $c 'sit'     (Rnd 3 6) }
     else                 { Set-State $c 'scratch' (Rnd 1.8 3) }
@@ -2007,16 +2015,17 @@ function Next-State($c) {
         $c.facing = 1.0; Set-State $c 'edge' (Rnd 2.5 5); return
     }
 
-    # Mauszeiger in der Naehe: winken, betteln, Kopf schief legen, Katzenkuss oder Koepfchen geben
+    # Mauszeiger in der Naehe: winken, betteln, Kopf schief legen, Katzenkuss, Miauen oder Koepfchen geben
     $cp = [System.Windows.Forms.Cursor]::Position
     if (-not $G.away -and [Math]::Abs($cp.X - $c.x) -lt 260 * $c.pxs -and (Rnd 0 1) -lt 0.2 -and
         (Get-ScreenAt $cp.X $cp.Y).DeviceName -eq $c.screen.DeviceName) {
         if ($cp.X -ge $c.x) { $c.facing = 1.0 } else { $c.facing = -1.0 }
         $rc = Rnd 0 1
-        if     ($rc -lt 0.22) { Set-State $c 'wave'  (Rnd 3 5) }
-        elseif ($rc -lt 0.42) { Set-State $c 'beg'   (Rnd 3 5) }
-        elseif ($rc -lt 0.62) { Set-State $c 'tilt'  (Rnd 2.5 4) }
-        elseif ($rc -lt 0.82) { Set-State $c 'blink' (Rnd 5 8) }
+        if     ($rc -lt 0.20) { Set-State $c 'wave'  (Rnd 3 5) }
+        elseif ($rc -lt 0.38) { Set-State $c 'beg'   (Rnd 3 5) }
+        elseif ($rc -lt 0.54) { Set-State $c 'tilt'  (Rnd 2.5 4) }
+        elseif ($rc -lt 0.70) { Set-State $c 'blink' (Rnd 5 8) }
+        elseif ($rc -lt 0.85) { Set-State $c 'meow'  (Rnd 2 3.6) }
         else                  { Set-State $c 'bunt'  (Rnd 4 7) }
         return
     }
@@ -2025,14 +2034,14 @@ function Next-State($c) {
     if     ($r -lt 0.15) { Set-State $c 'walk'    (Rnd 6 16) }
     elseif ($r -lt 0.21) { Set-State $c 'sit'     (Rnd 8 20) }
     elseif ($r -lt 0.26) { Set-State $c 'loaf'    (Rnd 10 25) }
-    elseif ($r -lt 0.32) { Set-State $c 'groom'   (Rnd 7 12) }
-    elseif ($r -lt 0.36) { Set-State $c 'scratch' (Rnd 2.5 4.5) }
-    elseif ($r -lt 0.41) { Set-State $c 'idle'    (Rnd 5 12) }
-    elseif ($r -lt 0.45) { Set-State $c 'run'     (Rnd 1.5 3) }
-    elseif ($r -lt 0.49) { Set-State $c 'crouch'  (Rnd 0.9 1.6) }
-    elseif ($r -lt 0.53) { Set-State $c 'wiggle'  (Rnd 1.2 1.9) }
-    elseif ($r -lt 0.56) { Set-State $c 'roll'    (Rnd 5 10) }
-    elseif ($r -lt 0.60) { Set-State $c 'meow'    (Rnd 1.6 3) }
+    elseif ($r -lt 0.31) { Set-State $c 'groom'   (Rnd 7 12) }
+    elseif ($r -lt 0.34) { Set-State $c 'scratch' (Rnd 2.5 4.5) }
+    elseif ($r -lt 0.38) { Set-State $c 'idle'    (Rnd 5 12) }
+    elseif ($r -lt 0.42) { Set-State $c 'run'     (Rnd 1.5 3) }
+    elseif ($r -lt 0.46) { Set-State $c 'crouch'  (Rnd 0.9 1.6) }
+    elseif ($r -lt 0.49) { Set-State $c 'wiggle'  (Rnd 1.2 1.9) }
+    elseif ($r -lt 0.52) { Set-State $c 'roll'    (Rnd 5 10) }
+    elseif ($r -lt 0.60) { Set-State $c 'meow'    (Rnd 2 3.6) }
     elseif ($r -lt 0.64) { Set-State $c 'stretch' 2.2 }
     elseif ($r -lt 0.68) { Set-State $c 'yawn'    2.0 }
     elseif ($r -lt 0.71) { Set-State $c 'hop'     (Rnd 2.0 3.2) }
@@ -2426,6 +2435,18 @@ function Update-Behaviour($c, $dt) {
         $c.meowT -= $dt
         if ($c.meowT -le 0) { $c.meowT = Rnd 0.9 1.5; Add-Particle $c 'meow' 144 80 }
     }
+    # beilaeufiges Miauen: alle paar Dutzend Sekunden ein kurzes "miau" mitten
+    # in der Taetigkeit - das Maeulchen geht dabei kurz auf (chatM, Get-AppliedPose)
+    $c.chatT -= $dt
+    if ($c.chatT -le 0) {
+        if (@('sleep','curl','yawn','meow','purr','pet','leap','fall','sucked','migrate','flee','crouch','wiggle') -contains $c.state) {
+            $c.chatT = 1.0                    # gerade unpassend - gleich noch mal schauen
+        } else {
+            if ($c.kit) { $c.chatT = Rnd 12 32 } else { $c.chatT = Rnd 16 42 }
+            $c.chatM = 0.75
+            Add-Particle $c 'meow' 144 80
+        }
+    }
 
     if (-not $c.locked -and -not $Pose -and (@('leap','fall','drag','sucked') -notcontains $c.state)) {
         if ($c.stateT -ge $c.stateDur) { Next-State $c }
@@ -2509,7 +2530,7 @@ function Abort-Social {
         } elseif ($c.stateDur -ge 99) {
             # Dauerzustaende aus 'snuggle'/'nap' (sit 99, sleep/curl 999) aufloesen,
             # sonst bleibt die Partnerin minutenlang eingefroren
-            if (@('sleep','curl') -contains $c.state) { Set-State $c 'shake' 1.1 }
+            if (@('sleep','curl') -contains $c.state) { Set-State $c 'shake' 1.1; $c.chatT = Rnd 2.5 5 }   # Begruessungs-Miau nach dem Aufwachen
             else { Set-State $c 'sit' (Rnd 1.5 3) }
         }
     }
@@ -2565,6 +2586,7 @@ function Update-Social($dt) {
                     ([Math]::Abs($b.meetX - $b.x) -lt 14 * $b.pxs)
             if ($near -or $done -or $s.t -gt 20) {
                 foreach ($c in @($a, $b)) { Set-State $c 'greet' 99 }
+                $a.chatT = 0.4; $b.chatT = 1.6    # Begruessung: eine miaut, die andere antwortet
                 $s.mode = 'greet'; $s.t = 0.0; $s.heartT = 0.6
             }
         }
@@ -3065,6 +3087,15 @@ function Get-AppliedPose($c, $dt) {
     # Atmen: alle wachen Posen heben und senken sich ganz leicht (Schlafposen
     # haben ihr eigenes, tieferes Atmen)
     if (@('sleep','curl') -notcontains $st) { $a.bsy += 0.018 * [Math]::Sin($t * 1.6) }
+    # beilaeufiges "miau" (Zeitgeber chatT in Update-Behaviour): Maeulchen auf
+    # und wieder zu, das Koepfchen hebt sich dabei ein wenig
+    if ($c.chatM -gt 0) {
+        $c.chatM -= $dt
+        $chatK = [Math]::Sin([Math]::PI * [Math]::Max(0, [Math]::Min(1, 1 - $c.chatM / 0.75)))
+        $a.mouth = [Math]::Max($a.mouth, 0.6 * $chatK)
+        $a.hrot -= 5 * $chatK
+        $a.hdy  -= 1.5 * $chatK
+    }
     # gelegentliches Ohrenzucken (Zeitgeber in Update-Behaviour)
     if ($c.earFlick -gt 0) { $a.ear += 14 * [Math]::Sin($c.earFlick / 0.3 * [Math]::PI) }
 
@@ -3221,7 +3252,7 @@ function Update-Housekeeping($dt) {
         # du bist zurueck - sie wachen auf und recken sich
         if ($G.soc.mode -eq 'nap') { Abort-Social }
         foreach ($c in (@($G.cats) + @($G.kits))) {
-            if (@('sleep','curl') -contains $c.state) { Set-State $c 'shake' 1.1 }
+            if (@('sleep','curl') -contains $c.state) { Set-State $c 'shake' 1.1; $c.chatT = Rnd 2.5 5 }   # Begruessungs-Miau nach dem Aufwachen
         }
     }
 
