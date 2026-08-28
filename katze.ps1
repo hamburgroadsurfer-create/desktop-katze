@@ -1152,20 +1152,46 @@ function Update-Fly($dt) {
 # ============================================================================
 function New-Ghost($size) {
     $sp = New-SpriteWindow 64 76 'Katzen-Geist' ($size * 1.5)     # Geist ist etwa katzengross
+    # alles in einer Gruppe, die beim Schweben sanft schaukelt
+    $grp = New-Object System.Windows.Controls.Canvas
+    $grp.Width = 64; $grp.Height = 76
+    $fill = New-Brush '#F6F7FF'
+    # kleine Stummelaermchen (hinter dem Koerper)
+    [void]$grp.Children.Add((New-Oval 7 46 4.5 5.5 0 $fill $null 0))
+    [void]$grp.Children.Add((New-Oval 57 46 4.5 5.5 0 $fill $null 0))
+    # runde Kuppel, unten zwei weiche Wellen
     $body = New-Object System.Windows.Shapes.Path
-    $body.Data = [System.Windows.Media.Geometry]::Parse('M 10,34 C 10,6 54,6 54,34 L 54,62 C 50,55 45,55 42,62 C 39,69 34,69 32,62 C 29,55 24,55 22,62 C 19,69 13,69 10,62 Z')
-    $body.Fill = New-Brush '#F4F6FF'
-    [void]$sp.cv.Children.Add($body)
+    $body.Data = [System.Windows.Media.Geometry]::Parse('M 9,36 C 9,4 55,4 55,36 L 55,60 C 51,56 46,56 43,62 C 39,68 36,66 32,60 C 28,66 25,68 21,62 C 18,56 13,56 9,60 Z')
+    $body.Fill = $fill
+    [void]$grp.Children.Add($body)
+    # grosse Glanzaugen (blinzeln ueber ScaleY), w-Maeulchen, Wangenrot
     $gdark = New-Brush '#3E4660'
-    [void]$sp.cv.Children.Add((New-Oval 24 32 3.2 4.2 0 $gdark $null 0))
-    [void]$sp.cv.Children.Add((New-Oval 40 32 3.2 4.2 0 $gdark $null 0))
-    [void]$sp.cv.Children.Add((New-Oval 32 43 2.4 3.0 0 $gdark $null 0))
-    foreach ($bx in @(17, 47)) {
-        $bl = New-Oval $bx 39 3.6 2.2 0 (New-Brush '#F4B3C0') $null 0
-        $bl.Opacity = 0.5
-        [void]$sp.cv.Children.Add($bl)
+    $eyes = New-Object System.Windows.Controls.Canvas
+    $eyes.Width = 64; $eyes.Height = 76
+    foreach ($ex in @(23, 41)) {
+        [void]$eyes.Children.Add((New-Oval $ex 34 4.2 5.0 0 $gdark $null 0))
+        [void]$eyes.Children.Add((New-Oval ($ex - 1.4) 32.2 1.5 1.5 0 (New-Brush '#FFFFFF') $null 0))
     }
-    $sp.win.Opacity = 0.85
+    $sp.eyeScl = New-Object System.Windows.Media.ScaleTransform(1, 1)
+    $sp.eyeScl.CenterX = 32; $sp.eyeScl.CenterY = 34
+    $eyes.RenderTransform = $sp.eyeScl
+    [void]$grp.Children.Add($eyes)
+    $lip = New-Object System.Windows.Shapes.Polyline
+    $lpc = New-Object System.Windows.Media.PointCollection
+    foreach ($q in @(@(27.5,43.4),@(29.5,45.6),@(32,46.2),@(34.5,45.6),@(36.5,43.4))) { $lpc.Add([System.Windows.Point]::new($q[0], $q[1])) }
+    $lip.Points = $lpc; $lip.Stroke = $gdark; $lip.StrokeThickness = 1.5
+    $lip.StrokeStartLineCap = 'Round'; $lip.StrokeEndLineCap = 'Round'; $lip.StrokeLineJoin = 'Round'
+    [void]$grp.Children.Add($lip)
+    foreach ($bx in @(15, 49)) {
+        $bl = New-Oval $bx 41 4.4 2.7 0 (New-Brush '#F4B3C0') $null 0
+        $bl.Opacity = 0.6
+        [void]$grp.Children.Add($bl)
+    }
+    $sp.rot = New-Object System.Windows.Media.RotateTransform(0)
+    $sp.rot.CenterX = 32; $sp.rot.CenterY = 40
+    $grp.RenderTransform = $sp.rot
+    [void]$sp.cv.Children.Add($grp)
+    $sp.win.Opacity = 0.9
     $sp
 }
 
@@ -1174,7 +1200,7 @@ function Spawn-Ghost {
     $ref = $G.cats[0]
     $wa = $ref.screen.WorkingArea
     $G.ghost = @{ sp = (New-Ghost $ref.size); x = [double]($wa.Left + $wa.Width * 0.5); y = 0.0
-                  ph = (Rnd 0 6); vx = ((Rnd 28 44) * $ref.pxs) }
+                  ph = (Rnd 0 6); vx = ((Rnd 28 44) * $ref.pxs); blinkT = (Rnd 2 5); blink = 0.0 }
     if ((Rnd 0 1) -lt 0.5) { $G.ghost.vx = -$G.ghost.vx }
     Log-Event 'Geist gerufen'
 }
@@ -1198,7 +1224,12 @@ function Update-Ghost($dt) {
     # langsame grosse Welle ueber die Raumhoehe plus kleines Wippen
     $gh.y = $wa.Top + $wa.Height * 0.45 + (0.22 * $wa.Height) * [Math]::Sin($gh.ph * 0.35) + 18 * $ref.pxs * [Math]::Sin($gh.ph * 2.1)
     Set-SpritePos $gh.sp $gh.x $gh.y
-    $gh.sp.win.Opacity = 0.72 + 0.2 * [Math]::Sin($gh.ph * 1.3)
+    # schaukelt sanft in Flugrichtung, pulsiert leicht, blinzelt alle paar Sekunden
+    $gh.sp.rot.Angle = 7 * [Math]::Sin($gh.ph * 1.1) + 0.06 * $gh.vx / [Math]::Max(0.2, $ref.pxs)
+    $gh.sp.win.Opacity = 0.84 + 0.1 * [Math]::Sin($gh.ph * 1.3)
+    $gh.blinkT -= $dt
+    if ($gh.blinkT -le 0) { $gh.blinkT = Rnd 2.5 6; $gh.blink = 0.18 }
+    if ($gh.blink -gt 0) { $gh.blink -= $dt; $gh.sp.eyeScl.ScaleY = [Math]::Max(0.08, [Math]::Abs($gh.blink / 0.09 - 1)) } else { $gh.sp.eyeScl.ScaleY = 1 }
 }
 
 # ============================================================================
